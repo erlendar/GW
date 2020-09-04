@@ -95,12 +95,7 @@ class GW():
 
     def Wk(self, z, zz):
         """
-        Returns the window function W_kappa in units
-        1/m**3    *    s*Mpc/km    *    Mpc*m
-         = s*Mpc**2/(km*m**2) = s/km * (Mpc/m)**2
-         = s/km * (3.08567758*1e22)**2
-
-        Now unitless
+        Returns the unitless window function W_kappa
         """
         W = self.rhom_av(z)/(self.H(z)*(1+z)*self.Sigma_crit(z,zz))
         return W*(self.c/1000)*(3.08567758*1e22)**2
