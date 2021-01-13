@@ -97,26 +97,8 @@ def intpol():
     Pmfunc = LinearNDInterpolator(points, vals)
     return Pmfunc
 
+"""
 def P_m_equaltime(k, z):
-    """
-    Returns the matter power spectrum P_m(k, z)
-    for a given wavenumber k and redshift z.
-
-    If k = (k_1, ..., k_n) and z = (z_1, ..., z_m)
-    are 1D - arrays, the returned power spectrum is
-    a matrix with rows (P_m(k_i, z_1), ..., P_m(k_i, z_m))
-    and columns (P_m(k_1, z_j), ..., P_m(k_n, z_j)).
-    (i.e. shape is (len(k), len(z)).)
-
-    If in addition z is a matrix (which may be relevant
-    for some cases), the returned power spectrum is a
-    3D-grid corresponding to the 2D-grid above
-    - The shape is (len(k), len(zrow), len(zcolumn)).
-
-    Other dimensions of the inputs should not be relevant.
-    Function assumes that all input of dimension > 0
-    are numpy arrays.
-    """
     f = intpol()
     if type(k) == np.ndarray and type(z) == np.ndarray:
         nk = len(k)
@@ -132,6 +114,33 @@ def P_m_equaltime(k, z):
             for i in range(nk):
                 for j in range(nzrow):
                     P[i, j, :] = f(k[i], z[j, :])
+        return P
+    else:
+        return f(k, z)
+"""
+
+def P_m_equaltime(k, z):
+    """
+    Returns the matter power spectrum P_m(k, z)
+    for a given wavenumber k and redshift z.
+
+    If k = (k_1, ..., k_n) and z = (z_1, ..., z_m)
+    are 1D - arrays, the returned power spectrum is
+    a matrix with rows (P_m(k_i, z_1), ..., P_m(k_i, z_m))
+    and columns (P_m(k_1, z_j), ..., P_m(k_n, z_j)).
+    (i.e. shape is (len(k), len(z)).)
+
+    The inputs z and k cannot have dimension larger than 1.
+    The function also assumes that all input of
+    dimension 1 are numpy arrays.
+    """
+    f = intpol()
+    if type(k) == np.ndarray and type(z) == np.ndarray:
+        nk = len(k)
+        nz = len(z)
+        P = np.zeros((nk, nz))
+        for i in range(nk):
+            P[i, :] = f(k[i], z)
         return P
     else:
         return f(k, z)
@@ -153,3 +162,52 @@ def plot_interpol():
 #if __name__ == "__main__":
     #GetPm(int(1e2))
     #plot_interpol()
+
+
+"""
+def P_m(k, z, z_prime):
+
+    #Returns the unequal time matter power spectrum
+    #by using the geometric approximation
+    #P(k, z, z')^2 = P(k, z) * P(k, z')
+
+    #The function only works for the following domain:
+    #1.1e-5 <      k     < 1.6   [h/Mpc]
+    #0.01   < z, z_prime < 1.5
+
+    #This function assumes that k and z_prime are 1D-arrays.
+    #Let the lengths of k, z, z_prime be denoted by
+    #nk, nz, nz_prime respectively. Then the shape
+    #of the returned power spectrum is as follows:
+
+    #(nk, nz, nz_prime) if z is a 1D-arrays.
+
+    #(nk, nzrow, nzcol, nz_prime) if z is a 2D-array.
+
+    #These will be the only relevant
+    #cases for our computations.
+
+    nk = len(k)
+    nz_prime = len(z_prime)
+    if len(np.shape(z)) == 1: # z is 1D
+        nz = len(z)
+        P = np.zeros((nk, nz, nz_prime))
+        for i in range(nz):
+            P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
+        Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
+        P = np.transpose(Ptransp, (1,2,0))
+    elif len(np.shape(z)) == 2: # z is 2D
+        # In this case P_m_equaltime(k, z) has
+        # the shape (nk, nzrow, nzcol)
+        nzrow = np.shape(z)[0]
+        nzcol = np.shape(z)[1]
+        P = np.zeros((nk, nzrow, nzcol, nz_prime))
+        for i in range(nz_prime):
+            P[:, :, :, i] = np.sqrt(P_m_equaltime(k, z))
+        Ptransp = np.transpose(P, (1, 2, 0, 3))\
+                * np.sqrt(P_m_equaltime(k, z_prime))
+        P = np.transpose(Ptransp, (2, 0, 1, 3))
+    else:
+        P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
+    return P
+"""
