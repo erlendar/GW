@@ -4,14 +4,33 @@ import scipy.special as spec
 import scipy.integrate as inte
 import scipy.misc as ms
 import time
+from scipy import interpolate
 from class5 import CLASS
+from genfuncs import *
 from MatterSpectrum import P_m_equaltime
 from MatterSpectrum import intpol
+
+# Oguri-related papers:
+# https://arxiv.org/pdf/2002.02466.pdf
+# https://arxiv.org/pdf/1809.03528.pdf
+
+# all n's equal to 4e2 OK, while nz_tg = 4e1
+
+# Kopiere over (fra hjem paa pcn): rsync -rv erlendar@euclid.uio.no:/uio/hume/student-u20/erlendar/Documents/Master/Cs /Users/erlendaars/Documents/GWsummerjob/myprogs/data
+
+# pwd at Master/Cluster: /uio/hume/student-u20/erlendar/Documents/Master
+# pwd at Cs/Cluster:     /uio/hume/student-u20/erlendar/Documents/Master/Cs
+
+# pwd at Cs/Mydata :     /Users/erlendaars/Documents/GWsummerjob/myprogs/data/Cs
+
+
 
 """
 Problem:
 When trying to create arrays of dimension (500,500,500,500),
-terminal shuts down, saying "Killed: 9"
+terminal shuts down, saying "Killed: 9".
+
+Same thing happens when running with (200, 200, 200, 200).
 """
 # IDEA: CALCULATE z-prime integral in (20) by creating a standard
 # zp = np.linspace(0.1,1.4,nzp) and then inserting a z-dependent
@@ -31,206 +50,44 @@ terminal shuts down, saying "Killed: 9"
 
 
 
-# This program computes the C_sg (+ the other) power spectrum(s)
-# by evaluating the bessel integrals directly
-
-# PLAN: (we will let z, zt and zp denote the z, z tilda and z prime
-# variables from Powspec-note, respectively)
-# Make a 3D grid of k, z and zt values
-# Evaluate all functions on this 3D grid
-# Integrate over the dimensions in the grid
-# Pay special attention to the matter power spectrum P_m
-
 l = 100
 
-z_i = np.linspace(0.9,1.1,100)  # GW bin
-#z_j = np.linspace(0.9,1.0,100)  # Galaxy bin
-
+z_i = np.linspace(0.9,1.1,2)  # GW bin
 z_imin = z_i[0]; z_imax = z_i[-1]
-#z_jmin = z_j[0]; z_jmax = z_j[-1]
 
-nz = int(2e2)
-nzt = int(2e2)
-nk = int(1e2)
-nzp = int(1e2)
+if __name__ == "__main__":
+    n = 5e2
+    nz = int(n)
+    nzt = int(n)
+    nk = int(n)
+    nzp = int(n)
+    nz_tg = int(5e1)
 
-wobble = 0.3
+    wobble = 0.3
 
-k = np.geomspace(1.4e-5, 1.6, nk)
-# Area where Pm(k) gives the main contribution
-# Better to use geometric spacing as the range
-# is over multiple orders of magnitude
+    k = np.geomspace(1.4e-5, 1.6, nk)
+    # Area where Pm(k) gives the main contribution
+    # Better to use geometric spacing as the range
+    # is over multiple orders of magnitude
 
-z = np.linspace(z_imin - wobble, z_imax + wobble, nz)
-# z-integral contains a GW-bin window function, so integrating
-# far outside the range of this bin is pointless
+    z = np.linspace(z_imin - wobble, z_imax + wobble, nz)
+    # z-integral contains a GW-bin window function, so integrating
+    # far outside the range of this bin is pointless
 
-zt = np.linspace(0.05,1.4,nzt)
-# zt-integral contains a galaxy-bin window function, so integrating
-# far outside the range of this bin is pointless
+    z_tg = np.linspace(z_imin - wobble, z_imax + wobble, nz_tg)
+    # For Ctg the z-variable is not evaluated by the Bessel functions
+    # so we can use fewer values to integrate over
 
-zp = np.linspace(0.05, z[-1], nzp)
-# Should always be accompanied by a Heaviside function
-# that limits the zp-integral to maximum z
+    zt = np.linspace(0.05,1.4,nzt)
+    # zt-integral contains a galaxy-bin window function, so integrating
+    # far outside the range of this bin is pointless
 
+    zp = np.linspace(0.05, z[-1], nzp)
+    # Should always be accompanied by a Heaviside function
+    # that limits the zp-integral to maximum z
 
-def integrate(x,y,ax=0):
-    return inte.simps(y,x,axis=ax)
-
-def j(x,l=2):
-    return spec.spherical_jn(l,x)
-
-def dj(x,l=2):
-    """
-    Returns the derivative of the Bessel function
-    """
-    return spec.spherical_jn(l,x,True)
-
-def H(z):
-    return 100*0.6763*np.sqrt(0.308*(1+z)**3 + 0.692)
-
-def f(z):
-    """
-    Returns the dimensionless linear growth rate
-    """
-    omega_m  = 0.308
-    omega_de = 0.692
-    omega = omega_m*(1+z)**3
-    return omega**0.6 + omega_de/70*(1+omega/2) # Dodelson approx
-
-def chi(z):
-    c = 299792458/1000
-    f = lambda zz: c/H(zz)
-    zs = np.linspace(0,z,200)
-    ch = integrate(zs,f(zs))
-    return ch
-
-def chibar(z):
-    """
-    For now this just returns chi(z)
-    """
-    return chi(z)
-
-def Hcal(z):
-    return H(z)/(1 + z)
-
-def omega_lambda(z):
-    """
-    Returns Omega_Lambda as a function
-    of the redshift (unitless)
-    """
-    omega_de = 0.692
-    h        = 0.6763
-    H0       = 100*h
-    omega = omega_de*H0**2/H(z)**2
-    return omega
-
-def alpha_M(z, alpha_M0 = 0):
-    """
-    Returns the alpha_M parameter (unitless)
-    """
-    alpha = alpha_M0*omega_lambda(z)/omega_lambda(0)
-    return alpha
-
-def mu(k, z):
-    """
-    Returns 1 for now
-    """
-    return 1
-
-def gamma(k, z):
-    """
-    Returns 1 for now
-    """
-    return 1
-
-def omega_matter(z):
-    omega_m  = 0.308
-    omega_de = 0.692
-    omega = omega_m*(1 + z)**3/(omega_de + omega_m*(1 + z)**3)
-    return omega
-
-def Ws_i(z):
-    I = CLASS(z_i)
-    return I.Ws(z)
-
-def Wt_i(z):
-    I = CLASS(z_i)
-    return I.Wt(z)
-
-def Wg_j(z, z_j):
-    J = CLASS(z_j)
-    return J.Wg(z)
-
-def Wk(z, zp, k):
-    """
-    For 1D-arrays z, zp and k
-    the returned Wk should be
-    of shape (k, z, zp)
-    """
-    c = 299792458/1000 # km/s
-    A = np.zeros((len(k), len(z), len(zp)))
-    chiz = np.copy(A); np.transpose(chiz, (0,2,1))[:] = chi(z)
-    chifraction = (chiz - chi(zp))/(chiz*chi(zp))
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*mu(k,zp)*(gamma(k,zp) + 1)
-    W2 = -3/4*A*chifraction
-    Wtransp = np.transpose(W2)/k**2
-    W = np.transpose(Wtransp)
-    W /= c # Unit correction for Wk to be unitless
-    return W
-
-def Wk2(z, zp, k):
-    """
-    For arrays zp, k of equal length,
-    returns shape (z, zp)
-    """
-    c = 299792458/1000 # km/s
-    A = np.zeros((len(z), len(zp)))
-    chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
-    chifraction = (chiz - chi(zp))/(chiz*chi(zp))
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*mu(k,zp)*(gamma(k,zp) + 1)
-    W2 = -3/4*A*chifraction
-    W = W2/k**2
-    W /= c # Unit correction for Wk to be unitless
-    return W
-
-def Wv(z, k):
-    """
-    For 1D-arrays z and k
-    the returned Wk should be
-    of shape (k, z)
-
-    Units Mpc
-    """
-    c = 299792458/1000 # km/s
-    A = np.zeros((len(k), len(z)))
-    A[:] = (1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
-    Wtransp = np.transpose(A)*1/k**2*1/c
-    W = np.transpose(Wtransp)
-    return W
-
-def Wv2(z, k):
-    """
-    For 1D-arrays z and k of equal
-    length, the returned Wk is
-    of shape (k)
-
-    Units Mpc
-    """
-    c = 299792458/1000 # km/s
-    A = np.zeros((len(k)))
-    A[:] = (1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
-    W = A*1/k**2*1/c
-    return W
-
-
-def b_g(z):
-    I = CLASS(z_i)
-    return I.b_g(z)
-
-def b_GW(z):
-    I = CLASS(z_i)
-    return I.b_GW(z)
+    split_n = 20 # Number of "nodes" to run program on
+    partial_n = int(nz_tg/split_n)
 
 
 
@@ -266,143 +123,40 @@ def P_m(k, z, z_prime):
 
 
 
-"""
-def Csgfunc(l, zj, Pinp=None):
-    if Pinp is None:
-        P = P_m(k, z, zt)
-    else:
-        P = Pinp
+#FOR TESTING!!!
+def Ws_i(z):
+    return np.heaviside(z-z_imin,0)*np.heaviside(z_imax-z,0)
 
-    z_j = zj
+def Wg_j(z, zj):
+    return np.heaviside(z-zj[0],0)*np.heaviside(zj[-1]-z,0)
 
-    def inner_integrand(l=2):
-        A = np.ones((len(k),len(z),len(zt)))
-        x1 = np.copy(A)
-        x2 = np.copy(A)
+def b_g(z):
+    x = np.ones(len(z))
+    return x
 
-        np.transpose(x1,(0,2,1))[:] = chi(z)
-        kz = np.transpose(np.transpose(x1)*k)
+def b_GW(z):
+    x = np.ones(len(z))
+    return x
 
-        x2[:] = chi(zt)
-        kzt = np.transpose(np.transpose(x2)*k)
+def P_m(k, z, z_prime):
+    nk = len(k)
+    nz = len(z)
+    nz_prime = len(z_prime)
+    P = np.zeros((nk, nz, nz_prime))
+    x = 1e-2
+    gauss = np.exp(-(k-x)**2/1e-5)
+    np.transpose(P)[:] = gauss
+    return P
 
-        A[:] = Wg_j(zt, z_j)*b_g(zt)
 
-        return A*P*j(kz,l)*j(kzt,l)
-
-    def middle_integrand(l=2):
-        Integral = integrate(zt,inner_integrand(l),2)
-        return Ws_i(z)*b_GW(z)*Integral
-
-    def outer_integrand(l=2):
-        Integral = integrate(z,middle_integrand(l),1)
-        return Integral*k**2
-
-    def Csg(l=2):
-        Integral = integrate(k,outer_integrand(l))
-        return Integral*2/np.pi
-
-    return Csg(l)
+#TESTING DONE!!!
 
 
 
-
-def Ctgfunc(l, zj, Pinp=None):
-    if Pinp is None:
-        P = P_m(k, zp, zt)
-    else:
-        P = Pinp
-
-    z_j = zj
-
-    def inner_integrand(l=2):
-        A = np.ones((len(k),len(z),len(zp),len(zt)))
-        PP = np.copy(A)
-        x1 = np.copy(A)
-        x2 = np.copy(A)
-
-        np.transpose(x1,(0,1,3,2))[:] = chi(zp)
-        kzp = np.transpose(np.transpose(x1)*k)
-
-        x2[:] = chi(zt)
-        kzt = np.transpose(np.transpose(x2)*k)
-
-        np.transpose(PP, (1,0,2,3))[:] = P
-        A[:] = Wg_j(zt, z_j)*b_g(zt)
-
-        return A*PP*j(kzp,l)*j(kzt,l)
-
-    def innermiddle_integrand(l=2):
-        Integral = integrate(zt,inner_integrand(l),3)
-        H = np.ones((len(k), len(z), len(zp)))
-        H[:] = zp
-        difftransp = np.transpose(H, (0, 2, 1)) - z
-        diff = np.transpose(difftransp, (0,2,1))
-        Heaviside = np.heaviside(diff, 0)
-        return Wk(z, zp, k)*Heaviside*Integral
-
-    def outermiddle_integrand(l=2):
-        Integral = integrate(zp,innermiddle_integrand(l),2)
-        return Wt_i(z)*Integral
-
-    def outer_integrand(l=2):
-        Integral = integrate(z,outermiddle_integrand(l),1)
-        return Integral*k**2
-
-    def Ctg(l=2):
-        Integral = integrate(k,outer_integrand(l))
-        return Integral*2/np.pi
-
-    return Ctg(l)
-
-
-
-
-def Cvgfunc(l, zj, Pinp=None):
-    if Pinp is None:
-        P = P_m(k, z, zt)
-    else:
-        P = Pinp
-
-    z_j = zj
-
-    def inner_integrand(l=2):
-        A = np.ones((len(k),len(z),len(zt)))
-        x1 = np.copy(A)
-        x2 = np.copy(A)
-
-        np.transpose(x1,(0,2,1))[:] = chi(z)
-        kz = np.transpose(np.transpose(x1)*k)
-
-        x2[:] = chi(zt)
-        kzt = np.transpose(np.transpose(x2)*k)
-
-        A[:] = Wg_j(zt, z_j)*b_g(zt)
-
-        return A*P*dj(kz,l)*j(kzt,l)
-
-    def middle_integrand(l=2):
-        Integral = integrate(zt,inner_integrand(l),2)
-        return Wv(z, k)*Wt_i(z)*Integral
-
-    def outer_integrand(l=2):
-        Integral = integrate(z,middle_integrand(l),1)
-        return Integral*k**3
-        # The third factor of k comes from the chain rule
-        # as we're dealing with the derivative of the Bessel j.
-
-    def Cvg(l=2):
-        Integral = integrate(k,outer_integrand(l))
-        return Integral*2/np.pi
-
-    return Cvg(l)
-"""
-
-def Csgfunc(l, Csgfacs, Wg):
+#def Csgfunc(l, Csgfacs, Wg, k=None, z=None, zt=None):
     innerfacs = Csgfacs[0]
     middlefacs = Csgfacs[1]
     outerfacs = Csgfacs[2]
-
     def inner_integrand(l=2):
         return innerfacs*Wg
 
@@ -417,17 +171,33 @@ def Csgfunc(l, Csgfacs, Wg):
     def Csg(l=2):
         Integral = integrate(k,outer_integrand(l))
         return Integral*2/np.pi
+    return Csg(l)
+def Csgfunc(l, Csgfacs, Wg):
+    innerfacs = Csgfacs[0]
+    middlefacs = Csgfacs[1]
+    outerfacs = Csgfacs[2]
+    def inner_integrand(l=2):
+        return innerfacs*Wg
 
+    def middle_integrand(l=2):
+        Integral = integrate(zt,inner_integrand(l),2)
+        return middlefacs*Integral
+
+    def outer_integrand(l=2):
+        Integral = integrate(z,middle_integrand(l),1)
+        return outerfacs*Integral
+
+    def Csg(l=2):
+        Integral = integrate(k,outer_integrand(l))
+        return Integral*2/np.pi
     return Csg(l)
 
 
-
-def Ctgfunc(l, Ctgfacs, Wg):
+#def Ctgfunc(l, Ctgfacs, Wg, k=None, z_tg=None, zp=None, zt=None):
     innerfacs = Ctgfacs[0]
     innermiddlefacs = Ctgfacs[1]
     outermiddlefacs = Ctgfacs[2]
     outerfacs = Ctgfacs[3]
-
     def inner_integrand(l=2):
         return innerfacs*Wg
 
@@ -440,22 +210,43 @@ def Ctgfunc(l, Ctgfacs, Wg):
         return outermiddlefacs*Integral
 
     def outer_integrand(l=2):
-        Integral = integrate(z,outermiddle_integrand(l),1)
+        Integral = integrate(z_tg,outermiddle_integrand(l),1)
         return outerfacs*Integral
 
     def Ctg(l=2):
         Integral = integrate(k,outer_integrand(l))
         return Integral*2/np.pi
+    return Ctg(l)
+def Ctgfunc(l, Ctgfacs, Wg):
+    innerfacs = Ctgfacs[0]
+    innermiddlefacs = Ctgfacs[1]
+    outermiddlefacs = Ctgfacs[2]
+    outerfacs = Ctgfacs[3]
+    def inner_integrand(l=2):
+        return innerfacs*Wg
 
+    def innermiddle_integrand(l=2):
+        Integral = integrate(zt,inner_integrand(l),3)
+        return innermiddlefacs*Integral
+
+    def outermiddle_integrand(l=2):
+        Integral = integrate(zp,innermiddle_integrand(l),2)
+        return outermiddlefacs*Integral
+
+    def outer_integrand(l=2):
+        Integral = integrate(z_tg,outermiddle_integrand(l),1)
+        return outerfacs*Integral
+
+    def Ctg(l=2):
+        Integral = integrate(k,outer_integrand(l))
+        return Integral*2/np.pi
     return Ctg(l)
 
 
-
-def Cvgfunc(l, Cvgfacs, Wg):
+#def Cvgfunc(l, Cvgfacs, Wg, k=None, z=None, zt=None):
     innerfacs = Cvgfacs[0]
     middlefacs = Cvgfacs[1]
     outerfacs = Cvgfacs[2]
-
     def inner_integrand(l=2):
         return innerfacs*Wg
 
@@ -470,88 +261,107 @@ def Cvgfunc(l, Cvgfacs, Wg):
     def Cvg(l=2):
         Integral = integrate(k,outer_integrand(l))
         return Integral*2/np.pi
+    return Cvg(l)
+def Cvgfunc(l, Cvgfacs, Wg):
+    innerfacs = Cvgfacs[0]
+    middlefacs = Cvgfacs[1]
+    outerfacs = Cvgfacs[2]
+    def inner_integrand(l=2):
+        return innerfacs*Wg
 
+    def middle_integrand(l=2):
+        Integral = integrate(zt,inner_integrand(l),2)
+        return middlefacs*Integral
+
+    def outer_integrand(l=2):
+        Integral = integrate(z,middle_integrand(l),1)
+        return outerfacs*Integral
+
+    def Cvg(l=2):
+        Integral = integrate(k,outer_integrand(l))
+        return Integral*2/np.pi
     return Cvg(l)
 
-def get_facs(P, P2):
+
+#def compute_integrands(P, P2, k=None, z=None, zt=None, zp=None, z_tg=None, \
+#                       sg=False, tg=False, vg=False):
+def compute_integrands(P, P2, sg=False, tg=False, vg=False):
+    nk = len(k)
+    nz = len(z)
+    nz_tg = len(z_tg)
+    nzp = len(zp)
+    nzt = len(zt)
+
+    def svcommon():
+        A = np.ones((nk, nz, nzt))
+        x1 = np.copy(A); x2 = np.copy(A)
+
+        np.transpose(x1,(0,2,1))[:] = chiz
+        kz = np.transpose(np.transpose(x1)*k)
+        x2[:] = chizt
+        kzt = np.transpose(np.transpose(x2)*k)
+        A[:] = bg
+        return A, kz, kzt
+
+    def sgintegrand():
+        A, kz, kzt = svcommon()
+        innerfac_Csg = A*P*j(kz,l)*j(kzt,l)
+        middlefac_Csg = Ws*bGW
+        outerfac_Cstg = k**2
+        Csgfacs = [innerfac_Csg, middlefac_Csg, outerfac_Cstg]
+        return Csgfacs
+
+    def vgintegrand():
+        A, kz, kzt = svcommon()
+        innerfac_Cvg = A*P*dj(kz,l)*j(kzt,l)
+        middlefac_Cvg = Wvv*Wt
+        outerfac_Cvg = k**3
+        Cvgfacs = [innerfac_Cvg, middlefac_Cvg, outerfac_Cvg]
+        return Cvgfacs
+
+    def tgintegrand():
+        Wt = Wt_i(z_tg)
+        B = np.ones((nk, nz_tg, nzp, nzt))
+        y1 = np.copy(B); y2 = np.copy(B)
+        PP = np.copy(B)
+
+        np.transpose(y1,(0,1,3,2))[:] = chizp
+        kzp = np.transpose(np.transpose(y1)*k)
+        y2[:] = chizt
+        kzt2 = np.transpose(np.transpose(y2)*k)
+        np.transpose(PP, (1,0,2,3))[:] = P2
+        B[:] = bg
+
+        H = np.ones((nk, nz_tg, nzp))
+        H[:] = zp
+        difftransp = z_tg - np.transpose(H, (0, 2, 1))
+        diff = np.transpose(difftransp, (0,2,1))
+        Heaviside = np.heaviside(diff, 0)
+
+        innerfac_Ctg = B*PP*j(kzp,l)*j(kzt2,l)
+        innermiddlefac_Ctg = Wkappa*Heaviside
+        outermiddlefac_Ctg = Wt
+        outerfac_Cstg = k**2
+
+        Ctgfacs = [innerfac_Ctg, innermiddlefac_Ctg, \
+                   outermiddlefac_Ctg, outerfac_Cstg]
+        return Ctgfacs
+
     Ws = Ws_i(z); Wt = Wt_i(z)
-    Wkappa = Wk(z, zp, k)
     Wvv = Wv(z, k)
     bGW = b_GW(z); bg = b_g(zt)
     chiz = chi(z); chizp = chi(zp)
     chizt = chi(zt)
+    ints = []
 
-    A = np.ones((nk, nz, nzt))
-    B = np.ones((nk, nz, nzp, nzt))
-    x1 = np.copy(A); x2 = np.copy(A)
-    y1 = np.copy(B); y2 = np.copy(B)
-    PP = np.copy(B)
-
-    np.transpose(x1,(0,2,1))[:] = chiz
-    kz = np.transpose(np.transpose(x1)*k)
-    x2[:] = chizt
-    kzt = np.transpose(np.transpose(x2)*k)
-    A[:] = bg
-
-    np.transpose(y1,(0,1,3,2))[:] = chizp
-    kzp = np.transpose(np.transpose(y1)*k)
-    y2[:] = chizt
-    kzt2 = np.transpose(np.transpose(y2)*k)
-    np.transpose(PP, (1,0,2,3))[:] = P2
-    B[:] = bg
-
-    innerfac_Csg = A*P*j(kz,l)*j(kzt,l)
-    innerfac_Ctg = B*PP*j(kzp,l)*j(kzt2,l)
-    innerfac_Cvg = A*P*dj(kz,l)*j(kzt,l)
-
-    H = np.ones((nk, nz, nzp))
-    H[:] = zp
-    difftransp = z - np.transpose(H, (0, 2, 1))
-    diff = np.transpose(difftransp, (0,2,1))
-    Heaviside = np.heaviside(diff, 0)
-
-    middlefac_Csg = Ws*bGW
-    innermiddlefac_Ctg = Wkappa*Heaviside
-    outermiddlefac_Ctg = Wt
-    middlefac_Cvg = Wvv*Wt
-
-    outerfac_Cstg = k**2
-    outerfac_Cvg = k**3
-
-    Csgfacs = [innerfac_Csg, middlefac_Csg, outerfac_Cstg]
-    Ctgfacs = [innerfac_Ctg, innermiddlefac_Ctg, \
-               outermiddlefac_Ctg, outerfac_Cstg]
-    Cvgfacs = [innerfac_Cvg, middlefac_Cvg, outerfac_Cvg]
-    return Csgfacs, Ctgfacs, Cvgfacs
-
-def Csgvg_get_facs(P):
-    Ws = Ws_i(z); Wt = Wt_i(z)
-    Wvv = Wv(z, k)
-    bGW = b_GW(z); bg = b_g(zt)
-    chiz = chi(z); chizp = chi(zp)
-    chizt = chi(zt)
-
-    A = np.ones((nk, nz, nzt))
-    x1 = np.copy(A); x2 = np.copy(A)
-
-    np.transpose(x1,(0,2,1))[:] = chiz
-    kz = np.transpose(np.transpose(x1)*k)
-    x2[:] = chizt
-    kzt = np.transpose(np.transpose(x2)*k)
-    A[:] = bg
-
-    innerfac_Csg = A*P*j(kz,l)*j(kzt,l)
-    innerfac_Cvg = A*P*dj(kz,l)*j(kzt,l)
-
-    middlefac_Csg = Ws*bGW
-    middlefac_Cvg = Wvv*Wt
-
-    outerfac_Cstg = k**2
-    outerfac_Cvg = k**3
-
-    Csgfacs = [innerfac_Csg, middlefac_Csg, outerfac_Cstg]
-    Cvgfacs = [innerfac_Cvg, middlefac_Cvg, outerfac_Cvg]
-    return Csgfacs, Cvgfacs
+    if sg:
+        ints.append(sgintegrand())
+    if tg:
+        Wkappa = Wk(z_tg, zp, k)
+        ints.append(tgintegrand())
+    if vg:
+        ints.append(vgintegrand())
+    return ints
 
 
 def LimberCsg(l, Wg, P=None):
@@ -592,14 +402,22 @@ def LimberCvg(l, zj, P=None):
         Pfunc = intpol()
         P = Pfunc(karg,zt)
     todiffanal = lambda zz: Wg_j(zz,zj)*b_g(zz)*H(zz)/chi(zz)**2
-    deriv = ms.derivative(todiffanal, zt)
-    integrand = H(zt)*Wt_i(zt)*Wv2(zt, karg)*P*deriv
+
+    eps = 1e-4
+    x = np.linspace(zj[0]+eps,zj[-1]-eps,1000)
+    deriv = ms.derivative(todiffanal, x, 1e-5)
+    myfunc = interpolate.interp1d(x, deriv, bounds_error=False, fill_value=0)
+
+    integrand = H(zt)*Wt_i(zt)*Wv2(zt, karg)*P*myfunc(zt)
     integral = integrate(zt,integrand)/c**2*1/h**3 # Unitless
     return integral
 
 def PlotLimbers():
+    runindex = np.load("runindex.npy")
+    np.save("runindex.npy", runindex + 1)
+
     delta_z = 0.1
-    nzg = 20 # Number of data points
+    nzg = 50 # Number of data points
     zg = np.linspace(0.1,1.3,nzg) # Data points for final plot
     C_sgLimber = np.copy(zg)
     C_tgLimber = np.copy(zg)
@@ -617,151 +435,171 @@ def PlotLimbers():
         C_sgLimber[i] = LimberCsg(l, Wg, P)
         C_tgLimber[i] = LimberCtg(l, Wg, P)
         C_vgLimber[i] = LimberCvg(l, zj, P)
+    #np.save("data/Cs/Csglimber.npy", C_sgLimber)
+    #np.save("data/Cs/Ctglimber.npy", C_tgLimber)
+    #np.save("data/Cs/Cvglimber.npy", C_vgLimber)
+    #np.save("data/Cs/zglimber.npy", zg)
     plt.plot(zg, C_sgLimber,"r.-")
     plt.plot(zg, C_tgLimber,"b.-")
-    plt.plot(zg, C_vgLimber,"g.-")
-    plt.legend(["C_sgLimber(l=100)", "C_tgLimber(l=100)", "C_vgLimber(l=100)"])
-    plt.yscale("log")
-    #plt.axis([0.1,1.3, 1e-8,1e-4])
-    plt.axis([0.01,1.4, 1e-12,1e-3])
-    plt.savefig("directplots/Limbers/CsgCtgCvgLimber")
+    #plt.plot(zg, C_vgLimber,"g.-")
+
+    x = np.load("zgdata.npy")
+    C = np.load("Csgdata.npy")
+    #plt.plot(x, C, "k.-")
+
+    plt.legend(["C_sgLimber(l={})".format(l), "C_tgLimber(l={})".format(l)])#, \
+                #"C_vgLimber(l={})".format(l)])
+    #plt.yscale("log")
+    plt.axis([0.1,1.3, 1e-8,1e-4])
+    #plt.axis([0.01,1.4, 1e-12,1e-3])
+    plt.savefig("data/Limbers{}".format(runindex))
     plt.show()
     return None
 PlotLimbers()
 
-def Runall(reset_runindex=False):
+
+def plotC(x, functions, dt, sg=False, tg=False, vg=False):
+    """
+    x: array of points along the x-axis
+    functions: list where each entry is an array
+               corresponding to points along the y-axis
+    legend: List of strings for the legend
+    """
+    n = len(functions)
+    runindex = np.load("runindex.npy")
+    legends=[]
+    if n == 3:
+        legends = ["Csg", "Ctg", "Cvg"]
+    elif n == 2:
+        if not sg:
+            legends = ["Ctg", "Cvg"]
+        if not tg:
+            legends = ["Csg", "Cvg"]
+        if not vg:
+            legends = ["Csg", "Ctg"]
+    else: # n == 1
+        if sg:
+            legends = ["Csg"]
+        if tg:
+            legends = ["Ctg"]
+        if vg:
+            legends = ["Cvg"]
+    formats = ["r.-", "b.-", "g.-","k.-","y.-","m.-","c.-"]
+    plots = []
+    for i in range(n):
+        plt.plot(x,functions[i],"r-.")
+        plt.title("nk, nz, nzt, nzp = ({}, {}, {}, {}), t = {:.2f} min, l={}"\
+                  .format(nk,nz,nzt,nzp,dt/60,l),loc="right")
+        plt.legend([legends[i]])
+        #plt.yscale("log")
+        #plt.axis([0.1,1.3, 1e-8,1e-4])
+        plt.savefig("directplots/" + legends[i] + "s/myplot{}".format(runindex))
+        plt.close()
+        plots.append(x)
+        plots.append(functions[i])
+        plots.append(formats[i])
+
+    plt.plot(*plots)
+    plt.title("nk, nz, nzt, nzp = ({}, {}, {}, {}), t = {:.2f} min, l={}"\
+              .format(nk,nz,nzt,nzp,dt/60,l),loc="right")
+    plt.legend(legends)
+    #plt.yscale("log")
+    #plt.axis([0.1,1.3, 1e-8,1e-4])
+    plt.savefig("directplots/All/myplot{}".format(runindex))
+    plt.show()
+    return None
+
+
+def run(reset_runindex=False, sg=False, tg=False, vg=False, z_tg=None):
     if reset_runindex:
         np.save("runindex.npy", 1)
     runindex = np.load("runindex.npy")
     np.save("runindex.npy", runindex + 1)
 
     delta_z = 0.1
-    nzg = 20 # Number of data points
+    nzg = 30 # Number of data points
     zg = np.linspace(0.1,1.3,nzg) # Data points for final plot
-    C_sg = np.copy(zg)
-    C_tg = np.copy(zg)
-    C_vg = np.copy(zg)
-    C_sgLimber = np.copy(zg)
 
     t1 = time.time()
-    print("Computing P_m ...")
-    P = P_m(k, z, zt)
-    P2 = P_m(k, zp, zt)
-    print("... P_m found")
+    if sg:
+        C_sg = np.copy(zg)
+    if vg:
+        C_vg = np.copy(zg)
+    if tg:
+        C_tg = np.copy(zg)
+        print("Computing P2_m ...")
+        P2 = P_m(k, zp, zt)
+        print("... P2_m found")
+    else:
+        P2 = None
+    if sg or vg:
+        print("Computing P_m ...")
+        P = P_m(k, z, zt)
+        print("... P_m found")
+    else:
+        P = None
     t12 = time.time()
 
     print("Computing integrands ...")
-    Csgfacs, Ctgfacs, Cvgfacs = get_facs(P, P2)
+    ints = compute_integrands(P=P, P2=P2, sg=sg, tg=tg, vg=vg)#, z_tg=z_tg)
     print("... Integrands found")
     t22 = time.time()
+
+    if len(ints) == 3:
+        Csgints, Ctgints, Cvgints = ints
+    elif len(ints) == 2:
+        if not sg:
+            Ctgints, Cvgints = ints
+        if not tg:
+            Csgints, Cvgints = ints
+        if not vg:
+            Csgints, Ctgints = ints
+    else: # len(ints) == 1
+        if sg:
+            Csgints = ints[0]
+        if tg:
+            Ctgints = ints[0]
+        if vg:
+            Cvgints = ints[0]
 
     for i in range(nzg):
         print("\nComputing datapoint {} out of {}".format(i+1,nzg))
         zg_elem = zg[i]
         zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
         Wg = Wg_j(zt, zj)
-        C_sg[i] = Csgfunc(l, Csgfacs, Wg)
-        C_tg[i] = Ctgfunc(l, Ctgfacs, Wg)
-        C_vg[i] = Cvgfunc(l, Cvgfacs, Wg)
-        C_sgLimber[i] = LimberCsg(l, Wg)
+        if sg:
+            C_sg[i] = Csgfunc(l, Csgints, Wg)
+        if tg:
+            C_tg[i] = Ctgfunc(l, Ctgints, Wg)
+        if vg:
+            C_vg[i] = Cvgfunc(l, Cvgints, Wg)
 
     t2 = time.time()
     print("\nTime spent computing P: {:.2f} minutes".format((t12 - t1)/60))
     print("Time spent computing integrands: {:.2f} minutes".format((t22 - t12)/60))
     print("Total time spent: {:.2f} minutes".format((t2-t1)/60))
-    plt.plot(zg,C_sg,"r-.")
-    plt.plot(zg,C_tg,"b-.")
-    plt.plot(zg,C_vg,"k-.")
-    plt.plot(zg,C_sgLimber,"g-.")
-    plt.legend(["Csg(l={})".format(l), \
-                "Ctg(l={})".format(l), \
-                "Cvg(l={})".format(l), \
-                "CsgLimber"])
 
-    plt.title("nk, nz, nzt, nzp = ({}, {}, {}, {}), t = {:.2f} min"\
-              .format(nk,nz,nzt,nzp,(t2-t1)/60),loc="right")
-    #plt.yscale("log")
-    #plt.axis([0.1,1.3, 1e-8,1e-4])
-    plt.savefig("directplots/directCsgCtgCvg{}".format(runindex))
-    plt.show()
+    plotlist = []
+    if sg:
+        np.save("Csgdata.npy", C_sg)
+        plotlist.append(C_sg)
+    if tg:
+        np.save("Ctgdata.npy", C_tg)
+        plotlist.append(C_tg)
+    if vg:
+        np.save("Cvgdata.npy", C_vg)
+        plotlist.append(C_vg)
+    np.save("zgdata.npy", zg)
 
-    plt.plot(zg,C_sg,"r-.")
-    plt.savefig("directplots/Csgs/plot{}".format(runindex))
-    plt.close()
+    dt = t2-t1
+    if sg or tg or vg:
+        plotC(zg, plotlist, dt, sg, tg, vg)
 
-    plt.plot(zg,C_tg,"r-.")
-    plt.savefig("directplots/Ctgs/plot{}".format(runindex))
-    plt.close()
+    return None
 
-    plt.plot(zg,C_vg,"r-.")
-    plt.savefig("directplots/Cvgs/plot{}".format(runindex))
-    plt.close()
-
-#Runall()
-
-
-
-def Runsome(reset_runindex=False):
-    if reset_runindex:
-        np.save("runindex.npy", 1)
-    runindex = np.load("runindex.npy")
-    np.save("runindex.npy", runindex + 1)
-
-    delta_z = 0.1
-    nzg = 20 # Number of data points
-    zg = np.linspace(0.1,1.3,nzg) # Data points for final plot
-    C_sg = np.copy(zg)
-    C_vg = np.copy(zg)
-    C_sgLimber = np.copy(zg)
-
-    t1 = time.time()
-    print("Computing P_m ...")
-    P = P_m(k, z, zt)
-    print("... P_m found")
-    t12 = time.time()
-
-    print("Computing integrands ...")
-    Csgfacs, Cvgfacs = Csgvg_get_facs(P)
-    print("... Integrands found")
-    t22 = time.time()
-
-    for i in range(nzg):
-        print("\nComputing datapoint {} out of {}".format(i+1,nzg))
-        zg_elem = zg[i]
-        zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
-        Wg = Wg_j(zt, zj)
-        C_sg[i] = Csgfunc(l, Csgfacs, Wg)
-        C_vg[i] = Cvgfunc(l, Cvgfacs, Wg)
-        C_sgLimber[i] = LimberCsg(l, Wg)
-
-    t2 = time.time()
-    print("\nTime spent computing P: {:.2f} minutes".format((t12 - t1)/60))
-    print("Time spent computing integrands: {:.2f} minutes".format((t22 - t12)/60))
-    print("Total time spent: {:.2f} minutes".format((t2-t1)/60))
-    plt.plot(zg,C_sg,"r-.")
-    plt.plot(zg,C_vg,"k-.")
-    plt.plot(zg,C_sgLimber,"g-.")
-    plt.legend(["Csg(l={})".format(l), \
-                "Cvg(l={})".format(l), \
-                "CsgLimber"])
-
-    plt.title("nk, nz, nzt, nzp = ({}, {}, {}, {}), t = {:.2f} min"\
-              .format(nk,nz,nzt,nzp,(t2-t1)/60),loc="right")
-    #plt.yscale("log")
-    #plt.axis([0.1,1.3, 1e-8,1e-4])
-    plt.savefig("directplots/directCsgCvg{}".format(runindex))
-    plt.show()
-
-    plt.plot(zg,C_sg,"r-.")
-    plt.savefig("directplots/Csgs/plot{}".format(runindex))
-    plt.close()
-
-    plt.plot(zg,C_vg,"r-.")
-    plt.savefig("directplots/Cvgs/plot{}".format(runindex))
-    plt.close()
-
-#Runsome()
-
+#if __name__ == "__main__":
+#    run(sg=True)
+#    run(sg=True,tg=True,vg=True)
 
 
 """
@@ -770,6 +608,13 @@ For Csg(l=100) with a 500x500x500-grid:
 Time spent computing P: 6.04 minutes
 Time spent computing integrands: 6.42 minutes
 Total time spent: 14.08 minutes
+
+For all(l=2) with a 150x150x150x150-grid:
+Time spent computing P: 3.52 minutes
+Time spent computing integrands: 11.30 minutes
+Total time spent: 41.44 minutes
 """
+
+
 
 #

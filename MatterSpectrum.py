@@ -61,7 +61,7 @@ def GetPm(nz=int(1e2)):
             RunCLASS(z_)
             Pk1 = np.zeros((len(z_),nk))
             for j in range(len(z_)):
-                FileToRead = "../../Downloads/class_public-2.9.3"\
+                FileToRead = "../../../Downloads/class_public-2.9.3"\
                            + "/output/mydataz{}_pk.dat".format(j+1)
                 # Indexing starting at 0
                 # Path to be generalized
@@ -97,27 +97,6 @@ def intpol():
     Pmfunc = LinearNDInterpolator(points, vals)
     return Pmfunc
 
-"""
-def P_m_equaltime(k, z):
-    f = intpol()
-    if type(k) == np.ndarray and type(z) == np.ndarray:
-        nk = len(k)
-        if len(np.shape(z)) == 1:    # z a 1D-array
-            nz = len(z)
-            P = np.zeros((nk, nz))
-            for i in range(nk):
-                P[i, :] = f(k[i], z)
-        elif len(np.shape(z)) == 2:  # z a 2D-array
-            nzrow = np.shape(z)[0]
-            nzcol = np.shape(z)[1]
-            P = np.zeros((nk, nzrow, nzcol))
-            for i in range(nk):
-                for j in range(nzrow):
-                    P[i, j, :] = f(k[i], z[j, :])
-        return P
-    else:
-        return f(k, z)
-"""
 
 def P_m_equaltime(k, z):
     """
@@ -159,55 +138,37 @@ def plot_interpol():
     plt.show()
 
 
-#if __name__ == "__main__":
-    #GetPm(int(1e2))
-    #plot_interpol()
 
-
-"""
 def P_m(k, z, z_prime):
+    """
+    Returns the unequal time matter power spectrum
+    by using the geometric approximation
+    P(k, z, z')^2 = P(k, z) * P(k, z')
 
-    #Returns the unequal time matter power spectrum
-    #by using the geometric approximation
-    #P(k, z, z')^2 = P(k, z) * P(k, z')
+    The function only works for the following domain:
+    1.1e-5 <      k     < 1.6   [h/Mpc]
+    0.01   < z, z_prime < 1.5
 
-    #The function only works for the following domain:
-    #1.1e-5 <      k     < 1.6   [h/Mpc]
-    #0.01   < z, z_prime < 1.5
-
-    #This function assumes that k and z_prime are 1D-arrays.
-    #Let the lengths of k, z, z_prime be denoted by
-    #nk, nz, nz_prime respectively. Then the shape
-    #of the returned power spectrum is as follows:
-
-    #(nk, nz, nz_prime) if z is a 1D-arrays.
-
-    #(nk, nzrow, nzcol, nz_prime) if z is a 2D-array.
-
-    #These will be the only relevant
-    #cases for our computations.
-
-    nk = len(k)
-    nz_prime = len(z_prime)
-    if len(np.shape(z)) == 1: # z is 1D
+    This function assumes that k, z and z_prime are 1D-arrays.
+    Let the lengths of k, z, z_prime be denoted by
+    nk, nz, nz_prime respectively. Then the shape
+    of the returned power spectrum is (nk, nz, nz_prime).
+    This will be the only relevant
+    case for our computations.
+    """
+    try:
+        nk = len(k)
         nz = len(z)
+        nz_prime = len(z_prime)
         P = np.zeros((nk, nz, nz_prime))
         for i in range(nz):
             P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
         Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
         P = np.transpose(Ptransp, (1,2,0))
-    elif len(np.shape(z)) == 2: # z is 2D
-        # In this case P_m_equaltime(k, z) has
-        # the shape (nk, nzrow, nzcol)
-        nzrow = np.shape(z)[0]
-        nzcol = np.shape(z)[1]
-        P = np.zeros((nk, nzrow, nzcol, nz_prime))
-        for i in range(nz_prime):
-            P[:, :, :, i] = np.sqrt(P_m_equaltime(k, z))
-        Ptransp = np.transpose(P, (1, 2, 0, 3))\
-                * np.sqrt(P_m_equaltime(k, z_prime))
-        P = np.transpose(Ptransp, (2, 0, 1, 3))
-    else:
+    except TypeError: # k, z or zp numbers instead of arrays
         P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
     return P
-"""
+
+#if __name__ == "__main__":
+    #GetPm(int(1e2))
+    #plot_interpol()
