@@ -5,15 +5,29 @@ import scipy.integrate as inte
 import scipy.misc as ms
 import time
 from class5 import CLASS
+from scipy.interpolate import interp1d
 
 
-z_i = np.linspace(0.9,1.1,100)  # GW bin
+z_i = np.linspace(0.9, 1.1, 2)  # GW bin
 
-def integrate(x,y,ax=0):
+def integrate(x,y,ax=-1):
     return inte.simps(y,x,axis=ax)
 
 def j(x,l=2):
     return spec.spherical_jn(l,x)
+
+"""
+x = np.linspace(0,100,1000)
+f = j(x, l=5)
+g = j(x, l=7)
+plt.plot(x,f)
+plt.plot(x,g)
+plt.title("Spherical bessel functions")
+plt.legend(["$j_5(x)$", "$j_7(x)$"])
+plt.xlabel("x")
+plt.savefig("spbes")
+plt.show()
+"""
 
 def dj(x,l=2):
     """
@@ -44,7 +58,7 @@ def chi(z):
     c = 299792458/1000
     f = lambda zz: c/H(zz)
     zs = np.linspace(0,z,200)
-    ch = integrate(zs,f(zs))
+    ch = integrate(zs,f(zs),ax=0)
     return ch
 
 def chibar(z):
@@ -177,9 +191,24 @@ def b_GW(z):
     return I.b_GW(z)
 
 
+def savechi(zmin=1e-3, zmax=2, N=1000):
+    z = np.linspace(zmin,zmax,N)
+    ch = chi(z)
+    np.save("zchiarr.npy", z)
+    np.save("chiarr.npy", ch)
+#savechi()
 
-
-
+def z_(chiarg, save=False):
+    """
+    The inverse of chi(z):
+    for any value C, returns the corresponding z s.t. chi(z) = C
+    """
+    if save:
+        savechi()
+    z = np.load("zchiarr.npy")
+    ch = np.load("chiarr.npy")
+    f = interp1d(ch, z)
+    return f(chiarg)
 
 
 

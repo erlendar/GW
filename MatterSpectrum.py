@@ -116,13 +116,24 @@ def P_m_equaltime(k, z):
     f = intpol()
     if type(k) == np.ndarray and type(z) == np.ndarray:
         nk = len(k)
-        nz = len(z)
-        P = np.zeros((nk, nz))
-        for i in range(nk):
-            P[i, :] = f(k[i], z)
+        if len(np.shape(z)) == 1:    # z a 1D-array
+            nz = len(z)
+            P = np.zeros((nk, nz))
+            for i in range(nk):
+                P[i, :] = f(k[i], z)
+        elif len(np.shape(z)) == 2:  # z a 2D-array
+            nzrow = np.shape(z)[0]
+            nzcol = np.shape(z)[1]
+            P = np.zeros((nk, nzrow, nzcol))
+            for i in range(nk):
+                for j in range(nzrow):
+                    P[i, j, :] = f(k[i], z[j, :])
         return P
     else:
         return f(k, z)
+
+
+
 
 
 def plot_interpol():
@@ -136,6 +147,71 @@ def plot_interpol():
     plt.ylabel("P [(Mpc/h)^3]")
     plt.savefig("Pm3")
     plt.show()
+
+
+"""
+def P_m(k, z, z_prime):
+
+    z_dim = len(np.shape(z))
+    z_prime_dim = len(np.shape(z_prime))
+    # Dim is 0 for numbers, 1 for arrays and 2 for matrices
+    if z_dim == 0 or z_prime_dim == 0:
+        fac1 = np.transpose(P_m_equaltime(k, z))
+        fac2 = np.transpose(P_m_equaltime(k, z_prime))
+        P = np.transpose(np.sqrt(fac1*fac2))
+
+    elif z_dim == 1 and z_prime_dim == 1:
+        nk = len(k)
+        nz = len(z)
+        nz_prime = len(z_prime)
+        P = np.zeros((nk, nz, nz_prime))
+        for i in range(nz):
+            P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
+        Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
+        P = np.transpose(Ptransp, (1,2,0))
+    elif z_dim == 2 and z_prime_dim == 1:
+        # In this case P_m_equaltime(k, z) has
+        # the shape (nk, nzrow, nzcol)
+        nk = len(k)
+        nz_prime = len(z_prime)
+        nzrow = np.shape(z)[0]
+        nzcol = np.shape(z)[1]
+        P = np.zeros((nk, nzrow, nzcol, nz_prime))
+        for i in range(nz_prime):
+            P[:, :, :, i] = np.sqrt(P_m_equaltime(k, z))
+        Ptransp = np.transpose(P, (1, 2, 0, 3))\
+                * np.sqrt(P_m_equaltime(k, z_prime))
+        P = np.transpose(Ptransp, (2, 0, 1, 3))
+    elif z_dim == 1 and z_prime_dim == 2:
+        # In this case P_m_equaltime(k, z_prime) has
+        # the shape (nk, nz_primerow, nz_primecol)
+        nk = len(k)
+        nz = len(z)
+        nz_primerow = np.shape(z_prime)[0]
+        nz_primecol = np.shape(z_prime)[1]
+        P = np.zeros((nk, nz, nz_primerow, nz_primecol))
+        for i in range(nz):
+            P[:, i, :, :] = np.sqrt(P_m_equaltime(k, z_prime))
+        Ptransp = np.transpose(P, (2, 3, 0, 1))\
+                * np.sqrt(P_m_equaltime(k, z))
+        P = np.transpose(Ptransp, (2, 3, 0, 1))
+    else:
+        P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
+    return P
+"""
+
+
+
+
+#if __name__ == "__main__":
+    #GetPm(int(1e2))
+    #plot_interpol()
+
+
+
+
+
+
 
 
 
@@ -156,7 +232,20 @@ def P_m(k, z, z_prime):
     This will be the only relevant
     case for our computations.
     """
-    try:
+    z_dim = len(np.shape(z))
+    z_prime_dim = len(np.shape(z_prime))
+    # Dim is 0 for numbers, 1 for arrays and 2 for matrices
+    if z_dim == 0 or z_prime_dim == 0:
+        fac1 = np.transpose(P_m_equaltime(k, z))
+        fac2 = np.transpose(P_m_equaltime(k, z_prime))
+        P = np.transpose(np.sqrt(fac1*fac2))
+        """
+        Either fac1 or fac2 will be of shape (len(k)), and the other will be
+        of shape (len(k), len(z)) or (len(k), len(z_prime)), so we transpose
+        the factors to multiply them (as we may multiply shapes (k) with (z, k))
+        and then transpose the product back again to the shape (k, z(prime))
+        """
+    elif z_dim == 1 and z_prime_dim == 1:
         nk = len(k)
         nz = len(z)
         nz_prime = len(z_prime)
@@ -165,10 +254,24 @@ def P_m(k, z, z_prime):
             P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
         Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
         P = np.transpose(Ptransp, (1,2,0))
-    except TypeError: # k, z or zp numbers instead of arrays
+    elif z_dim == 2 and z_prime_dim == 1:
+        """
+        z has the shape (zrow, zcol), and we will assume that
+        z_prime has the shape (zcol)!
+        """
+        P1 = np.sqrt(P_m_equaltime(k, z))       # Shape (nk, nzrow, nzcol)
+        P2 = np.sqrt(P_m_equaltime(k, z_prime)) # Shape (nk, nzcol)
+        Ptransp = np.transpose(P1, (1, 0, 2))*P2
+        P = np.transpose(Ptransp, (1, 0, 2))
+    elif z_dim == 1 and z_prime_dim == 2:
+        """
+        z_prime has the shape (z_primerow, z_primecol), and we will assume that
+        z has the shape (z_primecol)!
+        """
+        P1 = np.sqrt(P_m_equaltime(k, z))       # Shape (nk, z_primecol)
+        P2 = np.sqrt(P_m_equaltime(k, z_prime)) # Shape (nk, z_primerow, z_primecol)
+        Ptransp = P1*np.transpose(P2, (1, 0, 2))
+        P = np.transpose(Ptransp, (1, 0, 2))
+    else:
         P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
     return P
-
-#if __name__ == "__main__":
-    #GetPm(int(1e2))
-    #plot_interpol()
