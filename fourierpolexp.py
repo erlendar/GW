@@ -5,14 +5,25 @@ from genfuncs import *
 
 
 #kmin = 1e-4; kmax = 4.345e-1
-kmin = 6.45e-3; kmax = 1e0
+kmin = 1e-4; kmax = 0.1
+#kmin = 6.45e-3; kmax = 1e0
 P = np.log(kmax/kmin) # Period of the function g
-b = 1.9
+b = 1.5
 
 """
 def Pm(k, z, zt):
     return P_m(k, z, zt)
 """
+
+def W(k, k_left=kmin+1e-2, k_right=kmax-1e-2):
+    l_fac = (k - kmin)/(k_left - kmin)
+    r_fac = (kmax - k)/(kmax - k_right)
+    Wleft = l_fac - 1/(2*np.pi)*np.sin(2*np.pi*l_fac)
+    Wmid = 1
+    Wright = r_fac - 1/(2*np.pi)*np.sin(2*np.pi*r_fac)
+    Warr = np.copy(k)
+    W = np.where(Warr < k_left, Wleft, Wmid)
+    return np.where(Warr > k_right, Wright, W)
 
 
 def Pm0(k, z, zt):
@@ -22,13 +33,22 @@ def Pm0(k, z, zt):
     np.transpose(k3arr)[:] = k**3
     return P*k3arr
 
-def Pm(k, z, zt):
+def Pm_no_W(k, z, zt):
     #Returns the dimensionless unequal time matter power spectrum
+    #with the k^(-b)-factor.
     P = Pm0(k, z, zt)
     kbarr = np.copy(P)
     np.transpose(kbarr)[:] = k**(-b)
     return P*kbarr
 
+def Pm(k, z, zt):
+    #Returns the dimensionless unequal time matter power spectrum
+    #with the k^(-b)-factor and window. This is what we want to express in
+    #polynomials of k.
+    P = Pm0(k, z, zt)
+    kbarr = np.copy(P)
+    np.transpose(kbarr)[:] = k**(-b)*W(k) # W(k) is window to avoid ringing effects
+    return P*kbarr
 
 def g(k, z, zt):
     """
@@ -72,15 +92,36 @@ def PmFourier(k, z, zt):
     to validate the coefficients c)
     """
     N = int(1e2)
-    series = 0
     cs = c(z, zt, N)
     nu = np.zeros((N+1), dtype=complex)
+    series = 0
     for n in range(N+1):
         nu[n] = nu_func(n)
         series += cs[n]*k**nu[n]
         if n > 0:
             series += np.conj(cs[n])*k**(-nu[n])
     return np.real(series) # No imaginary contribution anyways
+
+
+
+
+def plot_coeffs():
+    z1 = 0.45
+    z2 = 0.93
+    N = 100#1500
+    n = [i for i in range(-N,N+1)]
+    coe = np.zeros((2*N+1), dtype=complex)
+    cc = c(z1, z2, N)
+    for i in range(N+1):
+        coe[N - i] = np.conj(cc[i])
+        coe[N + i] = cc[i]
+    #plt.plot(n, np.real(coe), ".")
+    #plt.plot(n, np.imag(coe), ".")
+    plt.plot(n, np.abs(coe), ".")
+    plt.yscale("log")
+    plt.show()
+#plot_coeffs()
+
 
 
 """
@@ -95,11 +136,20 @@ print(np.shape(c))
 #z = np.linspace(0.4,0.9,3); z2 = np.ones((4,5))*0.9
 #print(np.shape(Pm(k, z, z2)))
 
+def plot_P_W():
+    z = 0.5; zt = 0.9
+    k = np.linspace(kmin, kmax, 800)
+    plt.plot(k,Pm(k,z,zt),".")
+    plt.plot(k,Pm_no_W(k,z,zt))
+    plt.show()
+    return None
+#plot_P_W()
+
 def plot_fg():
     #kmin = 1e-4; kmax = 4.345e-1
     #kmin = 6.45e-3; kmax = 1e0
-    k = np.geomspace(kmin,kmax,200)
-    k2 = np.linspace(np.log(kmin),np.log(kmax)+P,200)
+    k = np.geomspace(kmin,kmax,800)
+    k2 = np.linspace(np.log(kmin),np.log(kmax)+P,800)
 
     z = 0.47; zt = 1.056
     f = Pm(k, z, zt)
@@ -110,7 +160,7 @@ def plot_fg():
 #plot_fg()
 
 def compare_fourier():
-    k = np.geomspace(kmin,kmax,200)
+    k = np.geomspace(kmin,kmax,400)
 
     z = 0.47; zt = 1.056
     I1 = integrate(k,Pm(k, z, zt))

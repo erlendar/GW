@@ -215,7 +215,7 @@ def P_m(k, z, z_prime):
 
 
 
-def P_m(k, z, z_prime):
+def P_m(k, z, z_prime, same_dim_on=False):
     """
     Returns the unequal time matter power spectrum
     by using the geometric approximation
@@ -249,11 +249,14 @@ def P_m(k, z, z_prime):
         nk = len(k)
         nz = len(z)
         nz_prime = len(z_prime)
-        P = np.zeros((nk, nz, nz_prime))
-        for i in range(nz):
-            P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
-        Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
-        P = np.transpose(Ptransp, (1,2,0))
+        if nz == nz_prime and same_dim_on:
+            P = np.sqrt(P_m_equaltime(k, z))*np.sqrt(P_m_equaltime(k, z_prime))
+        else:
+            P = np.zeros((nk, nz, nz_prime))
+            for i in range(nz):
+                P[:, i, :] = np.sqrt(P_m_equaltime(k, z_prime))
+            Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
+            P = np.transpose(Ptransp, (1,2,0))
     elif z_dim == 2 and z_prime_dim == 1:
         """
         z has the shape (zrow, zcol), and we will assume that
