@@ -90,7 +90,6 @@ if __name__ == "__main__":
     partial_n = int(nz_tg/split_n)
 
 
-
 def P_m(k, z, z_prime):
     """
     Returns the unequal time matter power spectrum
@@ -122,7 +121,7 @@ def P_m(k, z, z_prime):
     return P
 
 
-
+"""
 #FOR TESTING!!!
 def Ws_i(z):
     return np.heaviside(z-z_imin,0)*np.heaviside(z_imax-z,0)
@@ -150,9 +149,9 @@ def P_m(k, z, z_prime):
 
 
 #TESTING DONE!!!
+"""
 
-
-
+"""
 #def Csgfunc(l, Csgfacs, Wg, k=None, z=None, zt=None):
     innerfacs = Csgfacs[0]
     middlefacs = Csgfacs[1]
@@ -362,33 +361,41 @@ def compute_integrands(P, P2, sg=False, tg=False, vg=False):
     if vg:
         ints.append(vgintegrand())
     return ints
+"""
 
-
-def LimberCsg(l, Wg, P=None):
+def LimberCsg(l, zj, P=None, zt=None):
     c = 299792458
     h = 0.6763
-    karg = (l+0.5)/chi(zt)
+    if zt is None:
+        zt = np.linspace(0.6,1.4,200)
     if P is None:
+        karg = (l+0.5)/chi(zt)*1/h
         Pfunc = intpol()
         P = Pfunc(karg,zt)
-    integrand = Ws_i(zt)*Wg*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
+    integrand = Ws_i(zt)*Wg_j(zt, zj)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
     integrand *= 1e3/c/h**3 # unitless
     Integral = integrate(zt,integrand)
     return Integral
 
-def LimberCtg(l, Wg, P=None):
+def LimberCtg(l, zj, P=None, z=None, zt=None):
     c = 299792458
     h = 0.6763
-    karg = (l+0.5)/chi(zt)
+    if z is None:
+        z = np.linspace(0.6,1.4,200)
+    if zt is None:
+        zt = np.linspace(0.1,1.4,200)
+    karg = (l+0.5)/chi(zt)*1/h
     if P is None:
         Pfunc = intpol()
         P = Pfunc(karg,zt)
+    nz = len(z); nzt = len(zt)
+
     A = np.zeros((nz,nzt))
     A[:] = zt
     diff = np.transpose(z - np.transpose(A))
     Heaviside = np.heaviside(diff, 0)
 
-    inner_integrand = Wg*Wk2(z,zt,karg)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
+    inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
     integral1 = integrate(zt,inner_integrand,1)
     outer_integrand = Wt_i(z)*integral1
     integral2 = integrate(z,outer_integrand)
@@ -416,14 +423,20 @@ def PlotLimbers():
     runindex = np.load("runindex.npy")
     np.save("runindex.npy", runindex + 1)
 
+    h = 0.6763
     delta_z = 0.1
-    nzg = 50 # Number of data points
-    zg = np.linspace(0.1,1.3,nzg) # Data points for final plot
-    C_sgLimber = np.copy(zg)
+    nzg1 = 24
+    nzg2 = 27
+    nzg = nzg1 + nzg2 # Number of data points
+    zg1 = np.linspace(0.1, 0.8, nzg1 + 1)
+    zg2 = np.linspace(0.8, 1.3, nzg2)
+    zg = np.concatenate((zg1[:-1], zg2))
+    #C_sgLimber = np.copy(zg)
     C_tgLimber = np.copy(zg)
-    C_vgLimber = np.copy(zg)
+    #C_vgLimber = np.copy(zg)
 
-    karg = (l+0.5)/chi(zt)
+    zt = np.linspace(0.1,1.4,200)
+    karg = (l+0.5)/chi(zt)*1/h
     Pfunc = intpol()
     P = Pfunc(karg,zt)
 
@@ -432,30 +445,30 @@ def PlotLimbers():
         zg_elem = zg[i]
         zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
         Wg = Wg_j(zt, zj)
-        C_sgLimber[i] = LimberCsg(l, Wg, P)
-        C_tgLimber[i] = LimberCtg(l, Wg, P)
-        C_vgLimber[i] = LimberCvg(l, zj, P)
+        #C_sgLimber[i] = LimberCsg(l, zj, P, zt)
+        C_tgLimber[i] = LimberCtg(l, zj, P)
+        #C_vgLimber[i] = LimberCvg(l, zj, P)
     #np.save("data/Cs/Csglimber.npy", C_sgLimber)
     #np.save("data/Cs/Ctglimber.npy", C_tgLimber)
     #np.save("data/Cs/Cvglimber.npy", C_vgLimber)
     #np.save("data/Cs/zglimber.npy", zg)
-    plt.plot(zg, C_sgLimber,"r.-")
+    #plt.plot(zg, C_sgLimber,"r.-")
     plt.plot(zg, C_tgLimber,"b.-")
     #plt.plot(zg, C_vgLimber,"g.-")
 
-    x = np.load("zgdata.npy")
-    C = np.load("Csgdata.npy")
+    #x = np.load("zgdata.npy")
+    #C = np.load("Csgdata.npy")
     #plt.plot(x, C, "k.-")
 
-    plt.legend(["C_sgLimber(l={})".format(l), "C_tgLimber(l={})".format(l)])#, \
+    #plt.legend(["C_sgLimber(l={})".format(l), "C_tgLimber(l={})".format(l)])#, \
                 #"C_vgLimber(l={})".format(l)])
-    #plt.yscale("log")
+    plt.yscale("log")
     plt.axis([0.1,1.3, 1e-8,1e-4])
     #plt.axis([0.01,1.4, 1e-12,1e-3])
-    plt.savefig("data/Limbers{}".format(runindex))
+    #plt.savefig("data/Limbers{}".format(runindex))
     plt.show()
     return None
-PlotLimbers()
+#PlotLimbers()
 
 
 def plotC(x, functions, dt, sg=False, tg=False, vg=False):

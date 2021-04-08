@@ -4,13 +4,14 @@ from scipy.interpolate import griddata
 from scipy.interpolate import LinearNDInterpolator
 from class5 import CLASS
 
-def GetPm(nz=int(1e2)):
+def GetPm(nz=int(2e2)):
 
     nk = 114 # This is determined by CLASS (?)
     #nz = int(2e3)
 
     k = np.geomspace(1e-6, 2, nk)
-    z = np.linspace(0.01, 1.5, nz)
+    #z = np.linspace(0.01, 1.5, nz)
+    z = np.linspace(1e-6, 1.5, nz)
     # These quantities decides the points
     # we interpolate from
 
@@ -76,6 +77,7 @@ def GetPm(nz=int(1e2)):
     Pmsave(z)
     print("... MATTER POWER SPECTRUM SAVED")
     return None
+#GetPm()
 
 
 def GetDat():
@@ -131,8 +133,6 @@ def P_m_equaltime(k, z):
         return P
     else:
         return f(k, z)
-
-
 
 
 
@@ -278,3 +278,7 @@ def P_m(k, z, z_prime, same_dim_on=False):
     else:
         P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
     return P
+
+#z = np.linspace(1e-5, 1.5, 100)
+#plt.loglog(z, P_m(1e-3, z, 0.1), ".")
+#plt.show()

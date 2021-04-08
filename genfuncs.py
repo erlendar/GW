@@ -118,11 +118,32 @@ def Wg_j(z, z_j):
     J = CLASS(z_j)
     return J.Wg(z)
 
+def Wkappa(z, zp):
+    """
+    For 1D-arrays z, zp and k
+    the returned Wk should be
+    of shape (k, z, zp)
+
+    Unitless
+    """
+    c = 299792458/1000 # km/s
+    A = np.zeros([len(z)] + list(np.shape(zp)))
+    chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
+    chifraction = (chiz - chi(zp))*chi(zp)/chiz
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*2
+    W2 = 3/4*A*chifraction
+    Wtransp = np.transpose(W2)
+    W = np.transpose(Wtransp)
+    W /= c # Unit correction for Wk to be unitless
+    return W
+
 def Wk(z, zp, k):
     """
     For 1D-arrays z, zp and k
     the returned Wk should be
     of shape (k, z, zp)
+
+    Unitless
     """
     c = 299792458/1000 # km/s
     A = np.zeros((len(k), len(z), len(zp)))
@@ -191,8 +212,8 @@ def b_GW(z):
     return I.b_GW(z)
 
 
-def savechi(zmin=1e-3, zmax=2, N=1000):
-    z = np.linspace(zmin,zmax,N)
+def savechi(zmin=1e-10, zmax=20, N=1000):
+    z = np.geomspace(zmin,zmax,N)
     ch = chi(z)
     np.save("zchiarr.npy", z)
     np.save("chiarr.npy", ch)
@@ -209,10 +230,6 @@ def z_(chiarg, save=False):
     ch = np.load("chiarr.npy")
     f = interp1d(ch, z)
     return f(chiarg)
-
-
-
-
 
 
 

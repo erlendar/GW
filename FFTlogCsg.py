@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from genfuncs import *
 from fourierpolexp import c_chi, nu_func, Pm, b
 from besselint import Ibackwards, Ibackwardsmat, I
-from directcsg import LimberCsg
+from directcsg import LimberCsg, LimberCtg
 import time
 
 # CHECK OUT:
@@ -46,6 +46,90 @@ def Wbar_gj(chi, zj):
     z = z_(chi/h) # z_ reads chi in units Mpc
     return Wg_j(z, zj)*b_g(z)*H(z)/(c*h)
 
+def Wbar_ti(chi):
+    """
+    Window function used to find fcosm
+    In units h/Mpc
+
+    Takes chi as input, with units [Mpc/h]
+    """
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    z = z_(chi/h) # z_ reads chi in units Mpc
+    return Wt_i(z)*H(z)/(c*h)
+
+def Wbar_k(chi, chi_p):
+    """
+    Window function used to find fcosm
+    In units h/Mpc
+
+    Takes chi as input, with units [Mpc/h]
+    """
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    z = z_(chi/h) # z_ reads chi in units Mpc
+    z_p = z_(chi_p/h)
+    return Wkappa(z, z_p)*H(z_p)/(c*h)
+
+def Big_W(ch):
+    """
+    Window function used to find fcosm
+    In units h/Mpc
+
+    Takes chi as input, with units [Mpc/h]
+    Returns array of same shape as ch
+    """
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    n_int = 101
+
+    """
+    z_int_var = np.linspace(0.6, 1.4, n_int) # limited by Wbar_ti
+    chi_tilda = chi(z_int_var)*h
+    """
+    z_int_var = np.linspace(0.6, 1.4, 2) # limited by Wbar_ti
+    chi_tilda_range = chi(z_int_var)*h
+    chi_tilda = np.linspace(chi_tilda_range[0], chi_tilda_range[-1], n_int)
+
+    shapelist = [n_int] + list(np.shape(ch))
+    diff = np.zeros(shapelist)
+    np.transpose(diff)[:] = chi_tilda
+    diff -= ch
+
+    W2 = Wbar_k(chi_tilda, ch)
+    if len(np.shape(W2)) == 3:
+        W2 = np.transpose(W2,(1,2,0))
+        Heavi = np.transpose(np.heaviside(diff, 1),(1,2,0))
+    else:
+        W2 = np.transpose(W2)
+        Heavi = np.transpose(np.heaviside(diff, 1))
+
+    # Heavi is necessary as integration variable must be larger than chi
+    integrand = Wbar_ti(chi_tilda)*W2*Heavi
+    # z_int_var corresponds to chi_tilda, and z to ch
+    # Index of 0 is to take out the k-component
+    return integrate(chi_tilda, integrand, ax=-1)
+
+"""
+nz = 10
+z = np.linspace(0.01,1.3,nz)
+ch = chi(z)*0.6763
+
+nt = 500
+t = np.geomspace(1e-2,0.99,nt)
+ch_t = np.zeros((nt, nz))
+np.transpose(ch_t)[:] = t
+ch_t *= ch
+
+zj = np.linspace(0.05,0.15,2)
+leg=[]
+for i in range(nz):
+    f = Big_W(ch)[i]*Wbar_gj(ch_t, zj)[:,i]
+    plt.plot(t, f,".--")
+    leg.append("{}".format(z[i]))
+plt.legend(leg)
+plt.show()
+"""
 
 """
 nt = 200
@@ -124,23 +208,27 @@ def test_coeffs(cs, nus, ch, ch_t):
 
 
 
-def plot_some(t,nus,Is,show=False,save=False):
-    for i in range(1,len(nus),15):
+def plot_some(t,nus,Is,show=False,save=False,j=0,name=""):
+    for i in range(0,len(nus),15):
         plt.plot(t, np.real(Is)[:,i],".--")
         #plt.plot(t, np.imag(Is)[:,i],".")
     if save:
-        np.savefig("Iplot")
+        plt.savefig("plotsome/" + name + "plot{}".format(j))
     if show:
         plt.show()
+    else:
+        plt.close()
     return None
 
-def plotCsg(zg, C, l, N, nt, nch, timespent, fftlogindex):
+def plotCs(zg, C, C2, l, N, nt, nch, timespent, fftlogindex):
     plt.plot(zg,C,".")
+    plt.plot(zg,C2,".")
     plt.title("FFTlog, N={}, nt={}, nchi={}, t={:.1f}min".format(N, nt, nch, timespent))
     plt.xlabel("$z_g$")
     plt.ylabel("$C^{sg}$")
-    #plt.legend(["$Csg(l={})$".format(l)])
-    plt.legend(["Limber", "$Csg(l={})$".format(l)])
+    #plt.legend(["$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
+    #plt.legend(["Limber", "$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
+    plt.legend(["Limber", "Limber", "$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
     plt.savefig("fftplots/fftplotgen{}".format(fftlogindex))
     plt.yscale("log")
     plt.axis([0.1,1.3, 1e-8,1e-4])
@@ -188,6 +276,35 @@ def Csg(l, t, ch, Wsi, Wgj, Wsibar, Wgjbar, nus, cs, Is, i=None):
     #print("Final imaginary part: {}".format(np.imag(C)))
     return 2/(4*np.pi**2)*np.real(C)
 
+def Ctg(l, t, ch, W, Wgj, Wbar, Wgjbar, nus, cs, Is, i=None):
+    """
+    Csg power spectrum
+    """
+
+    F1 = create_F(t, ch, W, Wgj, nus, cs)
+    F2 = create_F(t, ch, Wbar, Wgjbar, nus, cs)
+    F = F1 + F2
+    #plot_some(t,nus,F,save=True,j=i,name="F")
+    #Limber_I = 2*np.pi**2*(l+0.5)**(nus-3) # "evaluated at t=1"
+    #Limber_F = F[-1,:]                     # "evaluated at t=1"
+
+    #plot_some(t,nus,F*Is,save=True,j=i,name="FI")
+    integrand = np.sum(F*Is, axis=1)   # summing along nus-axis
+    """
+    plt.plot(t,np.real(integrand),".")
+    plt.savefig("fftplots/Ctg_integrand/ints{}".format(i))
+    plt.close()
+    """
+    """
+    # Smooth out integrand by applying a gaussian filter:
+    from scipy.ndimage import gaussian_filter1d
+    integrand = gaussian_filter1d(np.real(integrand), 4)
+    """
+
+    C = integrate(t, integrand)
+    #print("Final imaginary part: {}".format(np.imag(C)))
+    return 2/(4*np.pi**2)*np.real(C)
+
 
 def make_oguriplot(reset_runindex=False, l=2, N=100):
     if reset_runindex:
@@ -196,33 +313,49 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
     np.save("fftlogindex.npy", fftlogindex + 1)
 
     time1 = time.time()
-    nt1 = 100
+    nt0 = 2
+    nt1 = 2
     nt2 = 100
-    nt3 = 100
-    nt = nt1 + nt2 + nt3
-    nch = 200
+    nt3 = 102
+    # nt0 and nt1 should be small for large l
+    nt = nt0 + nt1 + nt2 + nt3
+    nch = 201
     h = 0.6763
-    eps = 1e-4
+    eps = 1e-6
     #t = np.linspace(0.001, 1-eps, nt)
 
-    t1 = np.linspace(0.01,0.85,nt1 + 1)
-    t2 = np.linspace(0.85,0.95,nt2 + 1)
+    t0 = np.geomspace(eps,0.1,nt0 + 1)
+    t1 = np.linspace(0.01,0.55,nt1 + 1)
+    t2 = np.linspace(0.55,0.95,nt2 + 1)
     t3 = np.geomspace(0.95,1-eps,nt3)
-    t = np.concatenate((t1[:-1],t2[:-1],t3)) # No overlapping points
+    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3)) # No overlapping points
 
-    zrange = np.linspace(0.1,1.4,nch)  # z-domain to integrate over
+    """
+    zrange = np.linspace(0.05,1.35,nch)  # z-domain to integrate over
     ch = chi(zrange)*h                 # Corresponding chi-domain to
                                        # integrate over (in units Mpc/h)
+    """
+
+    zrange = np.linspace(0.05,1.35,2)  # z-domain to integrate over
+    chirange = chi(zrange)*h
+    ch = np.linspace(chirange[0], chirange[-1], nch)
+
     """
     You should sample from the chi-range!!
     As it is now, we're practically integrating over z as
     this is what we sample from.
     """
 
-
+    """
+    z_t = np.zeros((nt, nch))
+    np.transpose(z_t)[:] = t
+    z_t *= zrange
+    ch_t = chi(z_t)*h
+    """
     ch_t = np.zeros((nt, nch))
     np.transpose(ch_t)[:] = t
     ch_t *= ch
+
 
     print("Finding Fourier coefficients")
     coeffs = c_chi(ch, ch_t, N)
@@ -246,8 +379,10 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
         return np.where(nn >= 0, c1, c2) # The three arguments must be able to be broadcasted together
 
     print("Computing window functions")
-    Wsibar = Wbar_si(ch_t)
     Wsi = Wbar_si(ch)
+    Wsibar = Wbar_si(ch_t)
+    Wbig = Big_W(ch)
+    Wbigbar = Big_W(ch_t)
 
     N_arr = np.array([i for i in range(-N, N+1)])
     nus = nu_func(N_arr) + b
@@ -268,7 +403,7 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
             print("{}%".format(int(i/len(nus)*100)))
         Is[:, i] = I(l, nus[i], t)[:,0]
     print("100%")
-    #plot_some(t,nus,Is,show=True)
+    #plot_some(t,nus,Is,save=True,name="I")
 
     """
     zj = np.linspace(0.95,1.05,2)
@@ -278,21 +413,27 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
     """
 
     delta_z = 0.1
-    nzg1 = 6
+    nzg1 = 20
     nzg2 = 24
     nzg = nzg1 + nzg2 # Number of data points
     zg1 = np.linspace(0.1, 0.7, nzg1 + 1)
     zg2 = np.linspace(0.7, 1.3, nzg2)
     zg = np.concatenate((zg1[:-1], zg2))
     C_sg = np.copy(zg)
+    C_tg = np.copy(zg)
     LimberC_sg = np.copy(zg)
+    LimberC_tg = np.copy(zg)
 
 
     from MatterSpectrum import intpol
     zt = np.linspace(0.6,1.4,200)
-    karg = (l+0.5)/chi(zt)
+    z = np.linspace(0.6,1.4,200)
+    zt2 = np.linspace(0.1,1.4,200)
+    karg = (l+0.5)/chi(zt)*1/h
+    karg2 = (l+0.5)/chi(zt2)*1/h
     Pfunc = intpol()
     P = Pfunc(karg,zt)
+    P2 = Pfunc(karg2,zt2)
 
     for i in range(nzg):
         print("\nComputing datapoint {} out of {}".format(i+1,nzg))
@@ -301,14 +442,17 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
         Wgj = Wbar_gj(ch_t,zj)
         Wgjbar = Wbar_gj(ch,zj)
         C_sg[i] = Csg(l, t, ch, Wsi, Wgj, Wsibar, Wgjbar, nus, cs, Is, i)
+        C_tg[i] = Ctg(l, t, ch, Wbig, Wgj, Wbigbar, Wgjbar, nus, cs, Is, i)
         LimberC_sg[i] = LimberCsg(l, zj, P, zt)
+        LimberC_tg[i] = LimberCtg(l, zj, P2, z, zt2)
 
     time2 = time.time()
     timespent = (time2-time1)/60
     print("Time spent: {:.1f} minutes".format(timespent))
-    print(LimberC_sg/C_sg) # This value seems to be centered around ~ 1.45
+    #print(LimberC_sg/C_sg) # This value seems to be centered around ~ 1.45
     plt.plot(zg,LimberC_sg,"--")
-    plotCsg(zg, C_sg, l, N, nt, nch, timespent, fftlogindex)
+    plt.plot(zg,LimberC_tg,"--")
+    plotCs(zg, C_sg, C_tg, l, N, nt, nch, timespent, fftlogindex)
 
 
 make_oguriplot(l=100)
