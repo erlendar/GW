@@ -3,8 +3,12 @@ import matplotlib.pyplot as plt
 from genfuncs import *
 from fourierpolexp import c_chi, nu_func, Pm, b
 from besselint import Ibackwards, Ibackwardsmat, I
-from directcsg import LimberCsg, LimberCtg
+from directcsg import LimberCsg, LimberCtg, LimberCvg, LimberCvgprep
+from scipy import interpolate
+import scipy.misc as ms
 import time
+
+plt.style.use("ggplot")
 
 # CHECK OUT:
 # https://arxiv.org/pdf/1809.03528.pdf
@@ -20,9 +24,9 @@ import time
 
 
 #zrange =
-zj = np.linspace(0.95,1.05,2)
+#zj = np.linspace(0.95,1.05,2)
 
-def Wbar_si(chi):
+def Wbar_si(chi, c_M=0):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -32,7 +36,7 @@ def Wbar_si(chi):
     h = 0.6763
     c = 299792458/1000 # km/s
     z = z_(chi/h) # z_ reads chi in units Mpc
-    return Ws_i(z)*b_GW(z)*H(z)/(c*h)
+    return (Ws_i(z) + W_MG(z, c_M))*b_GW(z)*H(z)/(c*h)
 
 def Wbar_gj(chi, zj):
     """
@@ -45,7 +49,20 @@ def Wbar_gj(chi, zj):
     c = 299792458/1000 # km/s
     z = z_(chi/h) # z_ reads chi in units Mpc
     return Wg_j(z, zj)*b_g(z)*H(z)/(c*h)
+"""
+def Wbar_gjdiff(ch, zj):
+    h = 0.6763
 
+    todiffanal = lambda chh: Wbar_gj(chh, zj)
+
+    eps = 1e-4 # We want to avoid differentiating at the sharp cutoff of Wg_j
+    zrange = np.linspace(zj[0]+eps,zj[-1]-eps,1000)
+    chrange = chi(zrange)*h
+    deriv = ms.derivative(todiffanal, chrange, 1e-5)
+    myfunc = interpolate.interp1d(chrange, deriv, bounds_error=False, fill_value=0)
+    W = myfunc(ch)
+    return W
+"""
 def Wbar_ti(chi):
     """
     Window function used to find fcosm
@@ -58,7 +75,7 @@ def Wbar_ti(chi):
     z = z_(chi/h) # z_ reads chi in units Mpc
     return Wt_i(z)*H(z)/(c*h)
 
-def Wbar_k(chi, chi_p):
+def Wbar_k(chi, chi_p, c_M=0):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -69,9 +86,44 @@ def Wbar_k(chi, chi_p):
     c = 299792458/1000 # km/s
     z = z_(chi/h) # z_ reads chi in units Mpc
     z_p = z_(chi_p/h)
-    return Wkappa(z, z_p)*H(z_p)/(c*h)
+    return Wkappa(z, z_p, c_M)*H(z_p)/(c*h)
 
-def Big_W(ch):
+"""
+def Wbar_v(chi):
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    z = z_(chi/h) # z_ reads chi in units Mpc
+    return WvFFTlog(z)/h
+"""
+
+def Wv1(chi):
+    """
+    Takes chi as input, with units [Mpc/h].
+
+    Warning: chi must be a 1D-array! (for now)
+
+    Returns output in units (h/Mpc)^2
+    """
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    z = z_(chi/h) # z_ reads chi in units Mpc
+    W = H(z)*Wt_i(z)*WvFFTlog(z)/(c*h**2)
+    return W
+
+def Wv2(chi_t, zj):
+    """
+    Takes chi as input, with units [Mpc/h].
+
+    Returns output in units h/Mpc
+    """
+    h = 0.6763
+    c = 299792458/1000 # km/s
+    z = z_(chi_t/h) # z_ reads chi in units Mpc
+    W = H(z)*Wg_j(z, zj)*b_g(z)/(c*h)
+    return W
+
+
+def Big_W(ch, c_M):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -81,7 +133,7 @@ def Big_W(ch):
     """
     h = 0.6763
     c = 299792458/1000 # km/s
-    n_int = 101
+    n_int = 203
 
     """
     z_int_var = np.linspace(0.6, 1.4, n_int) # limited by Wbar_ti
@@ -96,19 +148,111 @@ def Big_W(ch):
     np.transpose(diff)[:] = chi_tilda
     diff -= ch
 
-    W2 = Wbar_k(chi_tilda, ch)
+    W2 = Wbar_k(chi_tilda, ch, c_M)
     if len(np.shape(W2)) == 3:
         W2 = np.transpose(W2,(1,2,0))
-        Heavi = np.transpose(np.heaviside(diff, 1),(1,2,0))
+        Heavi = np.transpose(np.heaviside(diff, 0),(1,2,0))
     else:
         W2 = np.transpose(W2)
-        Heavi = np.transpose(np.heaviside(diff, 1))
+        Heavi = np.transpose(np.heaviside(diff, 0))
 
     # Heavi is necessary as integration variable must be larger than chi
     integrand = Wbar_ti(chi_tilda)*W2*Heavi
     # z_int_var corresponds to chi_tilda, and z to ch
     # Index of 0 is to take out the k-component
     return integrate(chi_tilda, integrand, ax=-1)
+
+
+def Wvdiff(tarr, chiarr, N=100):
+    """
+    Returns W in units [(h/Mpc)^(3-nu)]
+    """
+    nz1 = 70
+    nt = 50
+    nz2 = nz1
+    h = 0.6763
+    t = np.linspace(0.01, 1, nt)
+    z1 = np.linspace(0.7, 1.3, nz1)
+    z2 = np.linspace(0.7, 1.3, nz2)
+
+    ch1 = chi(z1)*h
+    ch2 = np.zeros((nt, nz2))
+    np.transpose(ch2)[:] = t
+    ch2 *= chi(z2)*h
+    print("Finding coeffs")
+    t1 = time.time()
+    coeffs = c_chi(ch1, ch2, N, samedim2=False)
+    t2 = time.time()
+    print("Time spent doing so: {:.2f} min".format((t2-t1)/60))
+    coeffs[np.where(np.isnan(coeffs))] = 0
+
+    def coeff(n):
+        nn = np.copy(coeffs[n])
+        np.transpose(nn)[:] = n
+        c1 = coeffs[n]
+        c2 = np.conj(coeffs[-n])
+        return np.where(nn >= 0, c1, c2)
+
+    N_arr = np.array([i for i in range(-N, N+1)])
+    cs = coeff(N_arr)
+
+    print("Interpolating")
+    f = interpolate.interp1d(ch1, cs, axis=1, bounds_error=False, fill_value=0)
+
+    def toderiv(x):
+        ftransp = Wv1(x)*np.transpose(f(x), (0, 3, 2, 1))
+        return np.transpose(ftransp, (0, 3, 2, 1))
+    #toderiv = lambda x: f(x)*Wv1(x)
+
+    print("Differentiating")
+    deriv = ms.derivative(toderiv, ch1, 1e-3)
+    deriv[:,-1,:,:] = deriv[:,-2,:,:] # Final point is unstable
+                                      # due to differentiation
+
+    """
+    fplot = toderiv(ch1)
+    ind1 = 0
+    ind2 = 7
+    ind3 = 43
+    plt.plot(ch1, np.real(fplot[ind1, :, ind2, ind3]), ".--")
+    plt.show()
+    plt.plot(ch1, np.real(deriv[ind1, :, ind2, ind3]), ".--")
+    plt.show()
+    """
+
+    W = np.transpose(deriv, (0, 2, 1, 3))
+    W = np.diagonal(W, axis1=2, axis2=3)
+
+    print("Interpolating again")
+    VAL = np.zeros((len(N_arr), len(tarr), len(chiarr)), dtype=complex)
+    for i in range(len(N_arr)):
+        f = interpolate.RectBivariateSpline(t, ch1, np.real(W[i]))
+        g = interpolate.RectBivariateSpline(t, ch1, np.imag(W[i]))
+        np.real(VAL)[i, :, :] = f(tarr, chiarr)
+        np.imag(VAL)[i, :, :] = g(tarr, chiarr)
+
+
+    # DO A GRID-INTERPOLATION of DERIV AND EVALUATE AT (chinp1, chinp2)
+    # MAYBE CLASH TOGETHER CHI-AXES FIRST???!!
+    return VAL
+
+"""
+nt = 400
+nch = 301
+h = 0.6763
+t = np.linspace(0.01, 1-1e-4, nt)
+
+zrange = np.linspace(0.05,1.35,2)  # z-domain to integrate over
+chirange = chi(zrange)*h
+ch = np.linspace(chirange[0], chirange[-1], nch)
+
+ch_t = np.zeros((nt, nch))
+np.transpose(ch_t)[:] = t
+ch_t *= ch
+
+f = Wvdiff(t, ch)
+print(np.shape(f))
+"""
 
 """
 nz = 10
@@ -220,15 +364,16 @@ def plot_some(t,nus,Is,show=False,save=False,j=0,name=""):
         plt.close()
     return None
 
-def plotCs(zg, C, C2, l, N, nt, nch, timespent, fftlogindex):
+def plotCs(zg, C, C2, C3, l, N, nt, nch, timespent, fftlogindex):
     plt.plot(zg,C,".")
     plt.plot(zg,C2,".")
-    plt.title("FFTlog, N={}, nt={}, nchi={}, t={:.1f}min".format(N, nt, nch, timespent))
+    plt.plot(zg,C3,".")
+    plt.title("FFTlog, N={}, nt={}, nchi={}, t={:.1f}min".format(N, nt, nch, timespent), fontsize=11)
     plt.xlabel("$z_g$")
     plt.ylabel("$C^{sg}$")
     #plt.legend(["$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
     #plt.legend(["Limber", "$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
-    plt.legend(["Limber", "Limber", "$Csg(l={})$".format(l), "$Ctg(l={})$".format(l)])
+    plt.legend(["Limber", "Limber", "Limber", "$Csg(l={})$".format(l), "$Ctg(l={})$".format(l), "$Cvg(l={})$".format(l)])
     plt.savefig("fftplots/fftplotgen{}".format(fftlogindex))
     plt.yscale("log")
     plt.axis([0.1,1.3, 1e-8,1e-4])
@@ -278,7 +423,7 @@ def Csg(l, t, ch, Wsi, Wgj, Wsibar, Wgjbar, nus, cs, Is, i=None):
 
 def Ctg(l, t, ch, W, Wgj, Wbar, Wgjbar, nus, cs, Is, i=None):
     """
-    Csg power spectrum
+    Ctg power spectrum
     """
 
     F1 = create_F(t, ch, W, Wgj, nus, cs)
@@ -305,6 +450,40 @@ def Ctg(l, t, ch, W, Wgj, Wbar, Wgjbar, nus, cs, Is, i=None):
     #print("Final imaginary part: {}".format(np.imag(C)))
     return 2/(4*np.pi**2)*np.real(C)
 
+def Ctg2(l, t, ch, W, Wgj, W2, Wgj2, nus, cs, Is, i=None):
+    """
+    Ctg power spectrum
+    """
+    F1 = create_F(t, ch, W, Wgj, nus, cs)
+    F2 = create_F(t, ch, W2, Wgj2, nus, cs)
+    F = F1 + F2
+    integrand = np.sum(F*Is, axis=1)   # summing along nus-axis
+    C = integrate(t, integrand)
+    #print("Final imaginary part: {}".format(np.imag(C)))
+    ctg = 2/(4*np.pi**2)*np.real(C)
+    return ctg
+
+def Cvg(l, t, ch, Wv_2, Wv_diff, nus, I_v, i=None):
+    """
+    Cvg power spectrum
+    """
+    Ffac = np.zeros((len(t), len(ch), len(nus)), dtype=complex)
+    chis = np.zeros((len(ch), len(nus)), dtype=complex)
+    np.transpose(chis)[:] = ch
+    chis **= (3 - nus)
+
+    np.transpose(Ffac, (2,0,1))[:] = Wv_2*Wv_diff
+
+    F = Ffac*chis
+
+    Fint = integrate(ch, F, ax=1)
+    integrand = np.sum(Fint*I_v, axis=1)   # summing along nus-axis
+    C = integrate(t, integrand)
+    print("Final imaginary part: {}".format(np.imag(C)))
+    cvg = -2/(4*np.pi**2)*np.real(C)
+    return cvg
+
+
 
 def make_oguriplot(reset_runindex=False, l=2, N=100):
     if reset_runindex:
@@ -312,23 +491,29 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
     fftlogindex = np.load("fftlogindex.npy")
     np.save("fftlogindex.npy", fftlogindex + 1)
 
+    c_M = 1
+
     time1 = time.time()
-    nt0 = 2
-    nt1 = 2
+    nt0 = 10
+    nt1 = 10
     nt2 = 100
-    nt3 = 102
+    nt3 = 100
     # nt0 and nt1 should be small for large l
     nt = nt0 + nt1 + nt2 + nt3
     nch = 201
     h = 0.6763
-    eps = 1e-6
+    eps = 1e-5
     #t = np.linspace(0.001, 1-eps, nt)
+    """
+    Remember that C_vg needs more t-values!
+    """
 
-    t0 = np.geomspace(eps,0.1,nt0 + 1)
-    t1 = np.linspace(0.01,0.55,nt1 + 1)
-    t2 = np.linspace(0.55,0.95,nt2 + 1)
-    t3 = np.geomspace(0.95,1-eps,nt3)
+    t0 = np.geomspace(1e-4,0.1,nt0 + 1)
+    t1 = np.linspace(0.01,0.5,nt1 + 1)
+    t2 = np.linspace(0.5,0.999,nt2 + 1)
+    t3 = np.geomspace(0.999,1,nt3)
     t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3)) # No overlapping points
+    #t = np.linspace(0.5, 1.5, nt)
 
     """
     zrange = np.linspace(0.05,1.35,nch)  # z-domain to integrate over
@@ -339,12 +524,6 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
     zrange = np.linspace(0.05,1.35,2)  # z-domain to integrate over
     chirange = chi(zrange)*h
     ch = np.linspace(chirange[0], chirange[-1], nch)
-
-    """
-    You should sample from the chi-range!!
-    As it is now, we're practically integrating over z as
-    this is what we sample from.
-    """
 
     """
     z_t = np.zeros((nt, nch))
@@ -358,7 +537,8 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
 
 
     print("Finding Fourier coefficients")
-    coeffs = c_chi(ch, ch_t, N)
+    coeffs = c_chi(ch, ch_t, N, c_M=c_M)
+    #print(np.shape(np.where(np.isnan(coeffs))))
     coeffs[np.where(np.isnan(coeffs))] = 0 # The matter power spectrum has not been defined
                                            # for some values of z (chi), so we'll set these to
                                            # zero for now. This must be fixed,
@@ -379,10 +559,12 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
         return np.where(nn >= 0, c1, c2) # The three arguments must be able to be broadcasted together
 
     print("Computing window functions")
-    Wsi = Wbar_si(ch)
-    Wsibar = Wbar_si(ch_t)
-    Wbig = Big_W(ch)
-    Wbigbar = Big_W(ch_t)
+    Wsi = Wbar_si(ch, c_M)
+    Wsibar = Wbar_si(ch_t, c_M)
+    Wbig = Big_W(ch, c_M)
+    Wbigbar = Big_W(ch_t, c_M)
+    #Wti = Wbar_ti(ch)
+    #Wv_diff = Wvdiff(t, ch, N)
 
     N_arr = np.array([i for i in range(-N, N+1)])
     nus = nu_func(N_arr) + b
@@ -403,7 +585,20 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
             print("{}%".format(int(i/len(nus)*100)))
         Is[:, i] = I(l, nus[i], t)[:,0]
     print("100%")
+
+    """
+    print("Computing Bessel-integrals I, type 2:")
+    I_v = np.zeros((len(t), len(nus)), dtype=complex)
+    for i in range(len(nus)):
+        if i in [n for n in range(0, len(nus), 22)]:
+            print("{}%".format(int(i/len(nus)*100)))
+        I_v[:, i] = I(l, nus[i] - 2, t)[:,0]
+    print("100%")
+    """
     #plot_some(t,nus,Is,save=True,name="I")
+    #plot_some(t,nus,Is,show=True)
+    #check_integrands(t, ch, ch_t, cs, Is,nus)
+    #return None
 
     """
     zj = np.linspace(0.95,1.05,2)
@@ -413,49 +608,60 @@ def make_oguriplot(reset_runindex=False, l=2, N=100):
     """
 
     delta_z = 0.1
-    nzg1 = 20
-    nzg2 = 24
+    nzg1 = 15
+    nzg2 = 15
     nzg = nzg1 + nzg2 # Number of data points
     zg1 = np.linspace(0.1, 0.7, nzg1 + 1)
     zg2 = np.linspace(0.7, 1.3, nzg2)
     zg = np.concatenate((zg1[:-1], zg2))
-    C_sg = np.copy(zg)
-    C_tg = np.copy(zg)
-    LimberC_sg = np.copy(zg)
-    LimberC_tg = np.copy(zg)
+    C_sg = np.zeros(nzg)
+    C_sg[:] = None # Just to avoid plotting everything
+    C_tg = np.copy(C_sg)
+    C_vg = np.copy(C_sg)
+    LimberC_sg = np.copy(C_sg)
+    LimberC_tg = np.copy(C_sg)
+    LimberC_vg = np.copy(C_sg)
 
 
-    from MatterSpectrum import intpol
+    from hi_MatterSpectrum import intpol
     zt = np.linspace(0.6,1.4,200)
     z = np.linspace(0.6,1.4,200)
-    zt2 = np.linspace(0.1,1.4,200)
+    #zt2 = np.linspace(0.01,1.4,200)
+    zt2 = np.linspace(0.05,1.4,200)
     karg = (l+0.5)/chi(zt)*1/h
     karg2 = (l+0.5)/chi(zt2)*1/h
-    Pfunc = intpol()
+    Pfunc = intpol(fetchP=True, c_M=c_M)
     P = Pfunc(karg,zt)
     P2 = Pfunc(karg2,zt2)
+    #print("Prepping for LimberCvg")
+    #Cvderiv = LimberCvgprep(l, zt)
 
     for i in range(nzg):
         print("\nComputing datapoint {} out of {}".format(i+1,nzg))
         zg_elem = zg[i]
         zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
-        Wgj = Wbar_gj(ch_t,zj)
-        Wgjbar = Wbar_gj(ch,zj)
+        Wgj = Wbar_gj(ch_t, zj)
+        Wgjbar = Wbar_gj(ch, zj)
+        #Wv_2 = Wv2(ch_t, zj)
         C_sg[i] = Csg(l, t, ch, Wsi, Wgj, Wsibar, Wgjbar, nus, cs, Is, i)
         C_tg[i] = Ctg(l, t, ch, Wbig, Wgj, Wbigbar, Wgjbar, nus, cs, Is, i)
+        #C_tg[i] = Ctg2(l, t, ch, Wbigbar, Wgjbar, Wbig, Wgj, nus, cs, Is, i)
+        #C_vg[i] = Cvg(l, t, ch, Wv_2, Wv_diff, nus, I_v, i)
         LimberC_sg[i] = LimberCsg(l, zj, P, zt)
         LimberC_tg[i] = LimberCtg(l, zj, P2, z, zt2)
+        #LimberC_vg[i] = LimberCvg(l, zj, zt, Cvderiv)
 
     time2 = time.time()
     timespent = (time2-time1)/60
     print("Time spent: {:.1f} minutes".format(timespent))
-    #print(LimberC_sg/C_sg) # This value seems to be centered around ~ 1.45
     plt.plot(zg,LimberC_sg,"--")
     plt.plot(zg,LimberC_tg,"--")
-    plotCs(zg, C_sg, C_tg, l, N, nt, nch, timespent, fftlogindex)
+    plt.plot(zg,LimberC_vg,"--")
+    plotCs(zg, C_sg, C_tg, C_vg, l, N, nt, nch, timespent, fftlogindex)
 
 
 make_oguriplot(l=100)
+
 """
 n = 15
 C__sg = np.zeros(n)

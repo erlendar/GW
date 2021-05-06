@@ -7,8 +7,8 @@ import time
 from scipy import interpolate
 from class5 import CLASS
 from genfuncs import *
-from MatterSpectrum import P_m_equaltime
-from MatterSpectrum import intpol
+from MatterSpectrum import P_m_equaltime, P_m
+from hi_MatterSpectrum import intpol
 
 # Oguri-related papers:
 # https://arxiv.org/pdf/2002.02466.pdf
@@ -363,21 +363,21 @@ def compute_integrands(P, P2, sg=False, tg=False, vg=False):
     return ints
 """
 
-def LimberCsg(l, zj, P=None, zt=None):
+def LimberCsg(l, zj, P=None, zt=None, c_M=0):
     c = 299792458
     h = 0.6763
     if zt is None:
         zt = np.linspace(0.6,1.4,200)
     if P is None:
         karg = (l+0.5)/chi(zt)*1/h
-        Pfunc = intpol()
+        Pfunc = intpol(fetchP=True, c_M=c_M)
         P = Pfunc(karg,zt)
-    integrand = Ws_i(zt)*Wg_j(zt, zj)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
+    integrand = (Ws_i(zt) + W_MG(zt, c_M))*Wg_j(zt, zj)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
     integrand *= 1e3/c/h**3 # unitless
     Integral = integrate(zt,integrand)
     return Integral
 
-def LimberCtg(l, zj, P=None, z=None, zt=None):
+def LimberCtg(l, zj, P=None, z=None, zt=None, c_M=0):
     c = 299792458
     h = 0.6763
     if z is None:
@@ -386,7 +386,7 @@ def LimberCtg(l, zj, P=None, z=None, zt=None):
         zt = np.linspace(0.1,1.4,200)
     karg = (l+0.5)/chi(zt)*1/h
     if P is None:
-        Pfunc = intpol()
+        Pfunc = intpol(fetchP=True, c_M=c_M)
         P = Pfunc(karg,zt)
     nz = len(z); nzt = len(zt)
 
@@ -395,29 +395,70 @@ def LimberCtg(l, zj, P=None, z=None, zt=None):
     diff = np.transpose(z - np.transpose(A))
     Heaviside = np.heaviside(diff, 0)
 
-    inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
+    inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg, c_M)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
     integral1 = integrate(zt,inner_integrand,1)
     outer_integrand = Wt_i(z)*integral1
     integral2 = integrate(z,outer_integrand)
     return integral2*1e3/c/h**3
 
-def LimberCvg(l, zj, P=None):
+def LimberCvgprep(l, z):
+    """
+    Returns the differentiated factor in Limber_Cvg
+    in units [(Mpc/h)^3]
+    """
     c = 299792458/1000 # km/s
     h = 0.6763
-    karg = (l+0.5)/chi(zt)
-    if P is None:
-        Pfunc = intpol()
-        P = Pfunc(karg,zt)
-    todiffanal = lambda zz: Wg_j(zz,zj)*b_g(zz)*H(zz)/chi(zz)**2
+    karg = (l + 0.5)/chi(z)*1/h
+    x = np.linspace(0.6, 1.4, len(z))
+    """
+    To simplify the differentiation of P_m(k,z,z2) we will
+    split the power spectrum in the factors corresponding to the
+    geometric approximation
+    """
 
-    eps = 1e-4
-    x = np.linspace(zj[0]+eps,zj[-1]-eps,1000)
-    deriv = ms.derivative(todiffanal, x, 1e-5)
-    myfunc = interpolate.interp1d(x, deriv, bounds_error=False, fill_value=0)
+    toderiv = H(x)*Wt_i(x)*Wv(x, karg)*np.sqrt(P_m_equaltime(karg, x))
+    f = interpolate.interp1d(x, toderiv, axis=-1, bounds_error=False, fill_value=0)
 
-    integrand = H(zt)*Wt_i(zt)*Wv2(zt, karg)*P*myfunc(zt)
-    integral = integrate(zt,integrand)/c**2*1/h**3 # Unitless
-    return integral
+    deriv = ms.derivative(f, z, 1e-5)*np.sqrt(P_m_equaltime(karg, z))
+    # Multiplying the final P_m factor according to the geometric approx.
+
+    """
+    ind = 2
+    plt.plot(x, toderiv[ind, :],".--")
+    plt.show()
+
+    plt.plot(z, deriv[ind, :],".--")
+    plt.show()
+    """
+
+    prep = deriv*1/c
+    prep = np.diagonal(prep) # We want the diagonal because this corresponds
+                             # to both arguments of P being evaluated at the
+                             # same z!
+    return prep
+
+#z = np.linspace(0.6, 1.4, 200)
+#LimberCvgprep(100, z)
+
+
+def LimberCvg(l, zj, z=None, deriv=None):
+    """
+    Unitless
+    """
+    c = 299792458/1000 # km/s
+    h = 0.6763
+    if z is None:
+        eps = 1e-4
+        z = np.linspace(0.05 - eps, 1.35 + eps, 200)
+    if deriv is None:
+        deriv = LimberCvgprep(l, z)
+    Fac = H(z)/chi(z)**2*Wg_j(z, zj)*b_g(z)
+    integrand = Fac*deriv
+    C = integrate(z, integrand)
+    C *= -1/c*1/h**3
+    return C
+
+
 
 def PlotLimbers():
     runindex = np.load("runindex.npy")

@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from MatterSpectrum import P_m
+from hi_MatterSpectrum import P_m_hi
 from genfuncs import *
 
 
 #kmin = 1e-4; kmax = 4.345e-1
-kmin = 1e-4; kmax = 0.1
+kmin = 1e-4; kmax = 1.5
 #kmin = 6.45e-3; kmax = 1e0
 P = np.log(kmax/kmin) # Period of the function g
 b = 1.5
@@ -26,9 +27,12 @@ def W(k, k_left=kmin+1e-2, k_right=kmax-1e-2):
     return np.where(Warr > k_right, Wright, W)
 
 
-def Pm0(k, z, zt):
+def Pm0(k, z, zt, samedim2=True, c_M=0):
     #Returns the dimensionless unequal time matter power spectrum
-    P = P_m(k, z, zt)
+    if c_M == 0:
+        P = P_m(k, z, zt, samedim2=samedim2)
+    else:
+        P = P_m_hi(k, z, zt, samedim2=samedim2, c_M=c_M)
     k3arr = np.copy(P)
     np.transpose(k3arr)[:] = k**3
     return P*k3arr
@@ -41,16 +45,16 @@ def Pm_no_W(k, z, zt):
     np.transpose(kbarr)[:] = k**(-b)
     return P*kbarr
 
-def Pm(k, z, zt):
+def Pm(k, z, zt, samedim2=True, c_M=0):
     #Returns the dimensionless unequal time matter power spectrum
     #with the k^(-b)-factor and window. This is what we want to express in
     #polynomials of k.
-    P = Pm0(k, z, zt)
+    P = Pm0(k, z, zt, samedim2=samedim2, c_M=c_M)
     kbarr = np.copy(P)
     np.transpose(kbarr)[:] = k**(-b)*W(k) # W(k) is window to avoid ringing effects
     return P*kbarr
 
-def g(k, z, zt):
+def g(k, z, zt, samedim2=True, c_M=0):
     """
     Function we find the Fourier series of
     g(k, z, zt) = Pm(exp(k), z, zt)
@@ -63,25 +67,32 @@ def g(k, z, zt):
     while len(np.where(kk>np.log(kmax))[0]) > 0 or len(np.where(kk<np.log(kmin))[0]) > 0:
         kk[np.where(kk>np.log(kmax))] -= P
         kk[np.where(kk<np.log(kmin))] += P
-    return Pm(np.exp(kk), z, zt)
+    return Pm(np.exp(kk), z, zt, samedim2=samedim2, c_M=c_M)
 
-def c(z, zt, N=int(1e2)):
+def c(z, zt, N=int(1e2), samedim2=True, c_M=0):
     """
     Finds the coefficients of the Fourier series of g
     (corresponding to the polynomial series of Pm!)
     """
     f_sample = 2*N
     t = np.linspace(0, P, f_sample+2, endpoint=False)
-    c = np.fft.rfft(g(t, z, zt),axis=0)/t.size
+    c = np.fft.rfft(g(t, z, zt, samedim2=samedim2, c_M=c_M),axis=0)/t.size
     return c
 
-def c_chi(chi1, chi2, N=int(1e2)):
+def c_chi(chi1, chi2, N=int(1e2), samedim2=True, c_M=0):
     """
     Takes chi1, chi2 as input, in units Mpc/h
+
+    Returns c of shape (N+2, shape(chi1), shape(chi2))
+    If dim(chi1) = 1 and dim(chi2) = 2 and
+    len(dim(chi1)) is equal to the length of one of chi2's 2nd axis,
+    then the returned shape is just (N+2, shape(chi2)).
+
+    Same vice versa
     """
     h = 0.6763
     z = z_(chi1/h); zt = z_(chi2/h) # z_ reads chi in units Mpc
-    return c(z, zt, N)
+    return c(z, zt, N, samedim2=samedim2, c_M=c_M)
 
 def nu_func(n):
     return 1j*2*np.pi*n/P

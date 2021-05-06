@@ -25,14 +25,19 @@ class Cosmo():
         self.b_g1 = 1; self.b_g2 = 1
         self.b_w1 = 1; self.b_w2 = 1
 
-    def integration(self, x, y):
+    def integration(self, x, y, ax=0):
         """
-        Numerically integrate a discrete function y(x) by using Simpson's rule
+        Numerically integrate a discrete function y(x) (over
+        first axis) by using Simpson's rule
         """
-        #y[np.where(np.isnan(y))] = 0 # NaN-values should not contribute
-        val = integrate.simps(y,x,axis=0)
+        val = integrate.simps(y,x,axis=ax)
+        # axis=0 ensures that we integrate each of the
+        # columns separately, if y and x are matrices
+        # Correspondingly, axis=1 would integrate the rows
+
+        # i.e. for axis=0 we treat each column as a vector
+        # and integrate over that vector
         return val
-        # Assuming integration is over index 0 - axis
 
     def H(self,z):
         """
@@ -40,13 +45,11 @@ class Cosmo():
         """
         return self.H0*np.sqrt(self.omega_m*(1+z)**3 + self.omega_de)
 
-    def chi(self,z):
+    def chi(self,z,n=400):
         """
         Returns the comoving angular diameter distance ( = comoving distance) in Mpc
         """
         c = self.c/1000 # km/s
-        n = 200
-        # Method slow if n gets much larger
 
         zz = np.linspace(0,z,n)
         b = self.integration(zz, c/self.H(zz))
@@ -56,20 +59,19 @@ class Cosmo():
         """
         Returns the luminosity distance in Mpc
         """
-        return self.chi(z)*(1+z)
+        return self.chi(z) * (1 + z)
 
     def D_A(self,z):
         """
         Returns the angular diameter distance in Mpc
         """
-        return self.chi(z)/(1+z)
+        return self.chi(z) / (1 + z)
 
-    def D_AA(self,z1,z2):
+    def D_AA(self, z1, z2):
         """
         Returns the angular diameter distance between redshifts
         z1 and z2 in a flat universe (in Mpc)
         """
-        #DOUBLE CHECK
         val = (self.chi(z2) - self.chi(z1))/(1+z2)
         return val
 
@@ -85,18 +87,17 @@ class Cosmo():
         Returns the physical critical surface density at redshift
         z for the source redshift z_s in units kg/(Mpc*m)
         """
-        Dzz = self.D_AA(z,z_s)
-        #Dzz[np.where(Dzz==0)] = None
-        # Avoid division by zero
-        return self.c**2/(4*np.pi*self.G)*self.D_A(z_s)/\
-              (self.D_A(z)*Dzz)
+        val = self.c**2/(4*np.pi*self.G)*self.D_A(z_s)/\
+              (self.D_A(z)*self.D_AA(z,z_s))
+        return val
 
     def f(self, z):
         """
         Returns the dimensionless linear growth rate
         """
-        omega = self.omega_m*(1+z)**3
-        return omega**0.6 + self.omega_de/70*(1+omega/2) # Dodelson approx
+        omega = self.omega_m#*(1+z)**3
+        omega_de = self.omega_de
+        return omega**0.6 + omega_de/70*(1+omega/2) # Dodelson approx
         #return omega**0.55
 
     def b_g(self, z):

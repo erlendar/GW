@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from scipy.interpolate import LinearNDInterpolator
 from class5 import CLASS
+from MatterSpectrum import P_m
+import os
 
-def GetPm(nz=int(1e2)):
+def GetPm_hi(nz=int(1e2), c_M=0):
 
     nk = 114 # This is determined by CLASS (?)
     #nz = int(2e3)
@@ -34,10 +36,68 @@ def GetPm(nz=int(1e2)):
         infile.close()
         return np.array(k), np.array(P)
 
-    def RunCLASS(z):
-        z_i = np.linspace(0.9,1.1,100)
-        I = CLASS(z_i) # Bin not important for this matter
-        I.get_Pm(z)
+    def RunCLASS(zs):
+        omega_m  = 0.308
+        omega_de = 0.692
+        omega_b  = 0.04867
+        h        = 0.6763
+        """
+        Run CLASS in terminal to get the matter power spectrum P(k,z)
+
+        NOTE:
+        len(zs) must be smaller than 50,
+        as CLASS cannot handle too many arguments
+        """
+        infile = open("myhiruntemplate.txt", "r")
+        ss1 = infile.read() + "\n"
+        infile.close()
+
+        #ss1 = "gravity_model = propto_omega\n"\
+        #    + "parameters_smg = 1., 0., 0., 0., 1.\n"
+
+
+        sz = len(zs)*"{}, "
+        sz = sz[:-2] + "\n"
+
+        s1 = "h = {}\n".format(h)\
+           + "omega_b = {} # baryon density\n".format(omega_b*h**2)\
+           + "omega_m = {}\n".format(omega_m)\
+           + "Omega_Lambda = {}\n".format(omega_de)\
+           + "Omega_k = 0. #curvature\n"
+
+        s3 = "output = mPk\n"\
+           + "z_pk = "
+
+        s4 = "root = output/myhidata"
+
+
+        s = s1 + ss1 + s3 + sz + s4
+
+
+        S = "Omega_Lambda = 0\n"\
+          + "Omega_fld = 0\n"\
+          + "Omega_smg = -1\n"\
+          + "gravity_model = propto_omega\n"\
+          + "parameters_smg = 1., 0, {}, 0., 1.\n".format(c_M)\
+          + "expansion_model = lcdm\n"\
+          + "expansion_smg = 0.5\n"
+
+        SALT = S + s3 + sz + s4
+        SALT = SALT.format(*zs)
+
+
+        s = s.format(*zs)
+        s=SALT
+
+        outfile = open("../../../Downloads/hi_class_public-hi_class/myhirun.ini", "w")
+        outfile.write(s)
+        outfile.close()
+        # Create input file
+
+        os.system("cd; cd Downloads/hi_class_public-hi_class/; ./class myhirun.ini")
+        # Subprocess
+        # Run input file in Class from terminal
+        # Paths to be generalized
         return None
 
     def Pmsave(z):
@@ -62,31 +122,33 @@ def GetPm(nz=int(1e2)):
             RunCLASS(z_)
             Pk1 = np.zeros((len(z_),nk))
             for j in range(len(z_)):
-                FileToRead = "../../../Downloads/class_public-2.9.3"\
-                           + "/output/mydataz{}_pk.dat".format(j+1)
+                FileToRead = "../../../Downloads/hi_class_public-hi_class/"\
+                           + "/output/myhidataz{}_pk.dat".format(j+1)
                 # Indexing starting at 0
                 # Path to be generalized
                 ks, Pks = read_output(FileToRead)
                 Pk1[j,:] = Pks
             np.transpose(P[:,low_ind:high_ind])[:] = Pk1
-        np.save("karray.npy", ks)
-        np.save("zarray.npy", z)
-        np.save("Parray.npy", P)
+        np.save("hi_karray.npy", ks)
+        np.save("hi_zarray.npy", z)
+        np.save("hi_Parray.npy", P)
         return None
 
     Pmsave(z)
     print("... MATTER POWER SPECTRUM SAVED")
     return None
-#GetPm()
+#GetPm_hi()
 
 
 def GetDat():
-    k = np.load("karray.npy")
-    z = np.load("zarray.npy")
-    P = np.load("Parray.npy")
+    k = np.load("hi_karray.npy")
+    z = np.load("hi_zarray.npy")
+    P = np.load("hi_Parray.npy")
     return k, z, P
 
-def intpol():
+def intpol(fetchP=False, c_M=0):
+    if fetchP:
+        GetPm_hi(c_M=c_M)
     k, z, P = GetDat()
     points = []
     vals = []
@@ -100,7 +162,7 @@ def intpol():
     return Pmfunc
 
 
-def P_m_equaltime(k, z):
+def P_m_equaltime_hi(k, z):
     """
     Returns the matter power spectrum P_m(k, z)
     for a given wavenumber k and redshift z.
@@ -140,7 +202,7 @@ def plot_interpol():
     k, z, PP = GetDat()
     #plt.loglog(k,P_m_equaltime(k,z[-13]),"r--")
     #plt.loglog(k,PP[:,-13],"b.")
-    plt.loglog(z,P_m_equaltime(k[-4],z),"r--")
+    plt.loglog(z,P_m_equaltime_hi(k[-4],z),"r--")
     plt.loglog(z,PP[-4,:],"b.")
     #plt.xlabel("k [h/Mpc]")
     plt.xlabel("z")
@@ -215,7 +277,8 @@ def P_m(k, z, z_prime):
 
 
 
-def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
+def P_m_hi(k, z, z_prime, same_dim_on=False, samedim2=True, c_M=0):
+    GetPm_hi(c_M=c_M)
     """
     Returns the unequal time matter power spectrum
     by using the geometric approximation
@@ -236,8 +299,8 @@ def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
     z_prime_dim = len(np.shape(z_prime))
     # Dim is 0 for numbers, 1 for arrays and 2 for matrices
     if z_dim == 0 or z_prime_dim == 0:
-        fac1 = np.transpose(P_m_equaltime(k, z))
-        fac2 = np.transpose(P_m_equaltime(k, z_prime))
+        fac1 = np.transpose(P_m_equaltime_hi(k, z))
+        fac2 = np.transpose(P_m_equaltime_hi(k, z_prime))
         P = np.transpose(np.sqrt(fac1*fac2))
         """
         Either fac1 or fac2 will be of shape (len(k)), and the other will be
@@ -250,19 +313,19 @@ def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
         nz = len(z)
         nz_prime = len(z_prime)
         if nz == nz_prime and same_dim_on:
-            P = np.sqrt(P_m_equaltime(k, z))*np.sqrt(P_m_equaltime(k, z_prime))
+            P = np.sqrt(P_m_equaltime_hi(k, z))*np.sqrt(P_m_equaltime_hi(k, z_prime))
         else:
             P = np.zeros((nk, nz, nz_prime))
-            np.transpose(P, (1, 0, 2))[:] = np.sqrt(P_m_equaltime(k, z_prime))
-            Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime(k, z))
+            np.transpose(P, (1, 0, 2))[:] = np.sqrt(P_m_equaltime_hi(k, z_prime))
+            Ptransp = np.transpose(P, (2,0,1))*np.sqrt(P_m_equaltime_hi(k, z))
             P = np.transpose(Ptransp, (1,2,0))
     elif z_dim == 2 and z_prime_dim == 1:
         """
         z has the shape (zrow, zcol), and we will assume that
         z_prime has the shape (zcol)!
         """
-        P1 = np.sqrt(P_m_equaltime(k, z))       # Shape (nk, nzrow, nzcol)
-        P2 = np.sqrt(P_m_equaltime(k, z_prime)) # Shape (nk, nzcol)
+        P1 = np.sqrt(P_m_equaltime_hi(k, z))       # Shape (nk, nzrow, nzcol)
+        P2 = np.sqrt(P_m_equaltime_hi(k, z_prime)) # Shape (nk, nzcol)
         Ptransp = np.transpose(P1, (1, 0, 2))*P2
         P = np.transpose(Ptransp, (1, 0, 2))
     elif z_dim == 1 and z_prime_dim == 2:
@@ -274,8 +337,8 @@ def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
         If else:
         P will have the shape (k, z, zprimerow, zprimecol)
         """
-        P1 = np.sqrt(P_m_equaltime(k, z))       # Shape (nk, z)
-        P2 = np.sqrt(P_m_equaltime(k, z_prime)) # Shape (nk, z_primerow, z_primecol)
+        P1 = np.sqrt(P_m_equaltime_hi(k, z))       # Shape (nk, z)
+        P2 = np.sqrt(P_m_equaltime_hi(k, z_prime)) # Shape (nk, z_primerow, z_primecol)
         if not samedim2:
             nk = len(k)
             nz = len(z)
@@ -289,29 +352,27 @@ def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
             Ptransp = P1*np.transpose(P2, (1, 0, 2))
             P = np.transpose(Ptransp, (1, 0, 2))
     else:
-        P = np.sqrt(P_m_equaltime(k, z)*P_m_equaltime(k, z_prime))
+        P = np.sqrt(P_m_equaltime_hi(k, z)*P_m_equaltime_hi(k, z_prime))
     return P
 
+
+
+
 #z = np.linspace(0.01,1,1001)
-#z = 0.3
+#z = 0.9
 #k = np.linspace(1e-4,0.2,1000)
-#P = P_m(k, z, 1)
-#plt.plot(k, P,".--")
+#P = P_m_hi(k, z, 0.8, c_M=0)
+#P2 = P_m(k, z, 0.8)
+#plt.plot(k, P,"--")
+#plt.plot(k,P2,".")
+#plt.legend(["Modified Pm", "Original Pm"])
 #plt.show()
 
 
-#z = np.linspace(1e-5, 1.5, 102)
-#z2 = np.zeros((101,102))
-#z2[:] = np.linspace(1e-2,1.3,102)
-#k = np.linspace(1e-4,0.1,114)
-#P = P_m(k, z, z2, samedim2=False)
-#print(np.shape(P))
-
-#plt.loglog(z, P_m(1e-3, z, 0.1), ".")
-#plt.show()
-
-#print(np.shape(P_m_equaltime(k,z)))
 
 
-#plt.loglog(k, P_m(k, 0.3, 0.5),".")
-#plt.show()
+
+
+
+
+#

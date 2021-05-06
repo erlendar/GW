@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.special import hyp2f1
 from scipy.special import gamma
 from genfuncs import integrate
 import time
@@ -198,18 +199,58 @@ def F_12_taylor(a,b,c,z):
     term5 = a*(a+1)*(a+2)*(a+3)*b*(b+1)*(b+2)*(b+3)/(c*(c+1)*(c+2)*(c+3))*z**4/(4*3*2)
     return term1 + term2 + term3 + term4 + term5
 
-def I_lim(l, nu, t):
+def Poch(x, n):
+    return gamma(x + n)/gamma(x)
+
+def F_12_taylor2(a,b,c,z):
+    """
+    Returns the Taylor series (to 3rd order in z)
+    of the Hypergeometric function 2F1
+    """
+    N = 80
+    val = 0
+    for n in range(N):
+        new_term = Poch(a, n)*Poch(b, n)/Poch(c, n)*z**n/gamma(n+1)
+        val += new_term
+    return val
+
+
+def I_att1(l, nu_in):
+    """
+    Returns the value of I_{l}(nu, t-->1)
+    """
+    nu = np.zeros((1,1), dtype=complex)
+    nu[:] = nu_in
+    # This is just to make the dimensions match when concatenating in I
+    nom = np.pi**(3/2)*gamma(l + nu/2)*gamma(1 - nu/2)
+    denom = gamma((3 - nu)/2)*gamma(l + 2 - nu/2)
+    return nom/denom
+
+def I_lim(l, nu, tt):
     """
     Returns I_{l}(nu, t) in the limit t --> 1 by Taylor
     expanding the hypergeometric function
     """
-    z = t**2
-    prefac = np.pi**(3/2)*t**l*(2/(1+z))**(l+nu/2)/gamma((3-nu)/2)
+    if type(nu) != np.ndarray:
+        nu = np.array([nu])
+    if type(tt) != np.ndarray:
+        tt = np.array([tt])
+
+    t = tt[np.where(tt<1)]
+    z = np.zeros((len(t), len(nu)) ,dtype=complex)
+    tfac = np.copy(z)
+    np.transpose(z)[:] = t**2
+    np.transpose(tfac)[:] = t**l
+    prefac = np.pi**(3/2)*(2/(1+z))**(l+nu/2)/gamma((3-nu)/2)*tfac#*t**l
     term1 = gamma((2*l+nu)/2)*gamma((2-nu)/2)/gamma((4+2*l-nu)/2)\
           * F_12_taylor((2*l+nu)/4, (2*l+nu+2)/4, nu/2, ((1-z)/(1+z))**2)
     term2 = gamma((nu-2)/2)*(2*(1+z)/(1-z))**(nu-2)\
           * F_12_taylor((2*l+6-nu)/4, (2*l+4-nu)/4, 2-nu/2, ((1-z)/(1+z))**2)
-    return prefac*(term1 + term2)
+    val = prefac*(term1 + term2)
+    if 1 in tt:
+        val = np.concatenate((val, I_att1(l, nu)))
+    return val
+
 
 """
 def I_lim0(l, nu, t):
@@ -256,20 +297,65 @@ def I_lim0(l, nu, t):
 def I_att0(nu):
     return 2*np.pi*np.cos(np.pi*nu/2)*gamma(nu-2)*2*(2-nu) #Last two factors found by lhopital
 
-def I_att1(l, nu):
-    """
-    Returns the value of I_{l}(nu, t-->1)
-    """
-    nom = np.pi**(3/2)*gamma(l + nu/2)*gamma(1 - nu/2)
-    denom = gamma((3 - nu)/2)*gamma(l + 2 - nu/2)
-    return nom/denom
 
 def I_taylor(l, nu, t):
+    kmin = 1e-4; kmax = 0.1
+    P = np.log(kmax/kmin)
+    fac = 2*np.pi/P
+    N = np.imag(nu/(fac))
+    """
+    def tlim(n):
+        n = np.abs(n)
+        tmin = 0.3
+        tmax = 0.8
+        t = tmax*(1 - n/200) + tmin*(n/200)
+        return t
+    """
+    def tlim(n, l):
+        """
+        The tlim depends on nu_n and l!
+        This function is based very roughly on
+        plotting and finding a simple way to
+        paramtrize the effect of nu_n and l
+        of the t_limit
+
+        This t_limit basically says something about which t_values we
+        need to evaluate in our C-integrals! In reality we only need
+        to consider the interval [tlim(n,l), 1].
+        """
+        n = np.abs(n)
+        tmin = 0.3
+        tmax = 0.8
+        t = tmax*(1 - n/200) + tmin*(n/200)
+        # for n between 100 and 200:
+        if n >= 50:
+            t *= l/100
+        elif n < 25 and l < 80:
+            t *= (l+20)/100
+        elif n < 50 and l < 90:
+            t *= (l+10)/100
+        return t
+
+    #tlim = tlim(N)
+    tlim = tlim(N, l)
+    #plt.plot([tlim,tlim,], [-1,1],"-")
+    #plt.plot([1/tlim,1/tlim,], [-1,1],"-")
+    t_Taylor = t[np.where(t < tlim)]
+    t_bw = t[np.where(t >= tlim)]
+    """
+    Assuming ts in ascending order!
+    """
+    """
     #I1 = # I at 0
-    I2 = I_lim0(l, nu, t)
-    I3 = I_lim(l, nu, t)
-    #I4 =  #I at 1
-    return np.where(t < 0.5, I2, I3)
+    ind_low = np.where(t<0.5)
+    ind_high = np.where(t>=0.5)
+    tlow = t[ind_low]
+    thigh = t[ind_high]
+    """
+    Ilow = I_lim0(l, nu, t_Taylor)
+    Ihigh = I_lim(l, nu, t_bw)
+
+    return np.concatenate((Ilow, Ihigh))
 
 
 """
@@ -325,7 +411,7 @@ def compare_I_with_approx(l=2, n=5):
     plt.show()
 #compare_I_with_approx()
 
-def I(l, nu, t):
+def I2(l, nu, t):
     """
     Using the best methods in the respective t-domains to return the I-integrals
 
@@ -372,51 +458,121 @@ def I(l, nu, t):
     #tlim = tlim(N)
     tlim = tlim(N, l)
     #plt.plot([tlim,tlim,], [-1,1],"-")
+    #plt.plot([1/tlim,1/tlim,], [-1,1],"-")
     t_Taylor = t[np.where(t < tlim)]
     t_bw = t[np.where(t >= tlim)]
+    if 1 in t_bw:
+        t_bw = np.delete(t_bw, np.where(t_bw==1))
     ITa = I_lim0(l, nu, t_Taylor)
     Ibw = I_bw(l, nu, t_bw)
+    I_at1 = I_att1(l, nu)
+    #print(np.shape(ITa))
+    #print(np.shape(Ibw))
+    #print(np.shape(I_at1))
+    if 1 in t:
+        Ival = np.concatenate((ITa, Ibw, I_at1))
+        # Assuming that 1 is the final entry of the t-array
+    else:
+        Ival = np.concatenate((ITa, Ibw))
+    return Ival
 
-    Ival = np.concatenate((ITa, Ibw))
+
+def I(l, nu, t):
+    if not type(nu) == np.ndarray:
+        nu = np.array([nu])
+    Ival = np.zeros((len(t), len(nu)), dtype=complex)
+    low_ind = np.where(t <= 1)
+    high_ind = np.where(t > 1)
+    low_t = t[low_ind]
+    high_t = t[high_ind]
+
+    tnu_fac = np.zeros((len(high_t), len(nu)), dtype=complex)
+    np.transpose(tnu_fac)[:] = high_t
+    tnu_fac **= (-nu)
+    Ival[low_ind, :] = I2(l, nu, low_t)
+    Itemp = I2(l, nu, np.flip(1/high_t)) # t's must be in increasing order, so we flip ´em
+    Ival[high_ind,:] = tnu_fac*np.flip(Itemp, axis=0) # Now flip back
+    return Ival
+
+def Itaytay(l, nu, t):
+    if not type(nu) == np.ndarray:
+        nu = np.array([nu])
+    Ival = np.zeros((len(t), len(nu)), dtype=complex)
+    low_ind = np.where(t <= 1)
+    high_ind = np.where(t > 1)
+    low_t = t[low_ind]
+    high_t = t[high_ind]
+
+    tnu_fac = np.zeros((len(high_t), len(nu)), dtype=complex)
+    np.transpose(tnu_fac)[:] = high_t
+    tnu_fac **= (-nu)
+    #print(np.shape(Ival[low_ind, :]))
+    #print(np.shape(I_taylor(l, nu, low_t)))
+    Ival[low_ind, :] = I_taylor(l, nu, low_t)
+    Itemp = I_taylor(l, nu, np.flip(1/high_t))
+    Ival[high_ind,:] = tnu_fac*np.flip(Itemp, axis=0)
+
     return Ival
 
 
 def plot_Ibw():
-    N = 20
+    N = -99
     n = N
     eps = 1e-4
     #n = np.array([i for i in range(-N,N+1)],dtype=complex)
     b = 1.5
     kmin = 1e-4; kmax = 0.1
     P = np.log(kmax/kmin)
-    nu = 1j*2*np.pi*n/P + b
+    nu = 1j*2*np.pi*n/P + b -2
     #t = np.array([0.9])
-    t1 = np.linspace(0.01,0.85,200)
+    t1 = np.linspace(0.01,0.85,600)
     t2 = np.linspace(0.85,0.95,201)
-    t3 = np.geomspace(0.95,1-eps,201)
+    #t3 = np.geomspace(0.95,1-eps,201)
+    t3 = np.geomspace(0.95,1-1e-12,201)
     t = np.concatenate((t1,t2,t3))
-    l = 79
+    t = np.linspace(0.5,2,1000)
+    l = 100
 
-    f = I_lim0(l, nu, t)
-    g = I_bw(l, nu, t)
-    h = np.concatenate((I_lim0(l, nu, t[np.where(t<0.5)]), I_bw(l, nu, t[np.where(t>=0.5)])))
+    """
+    nt0 = 200
+    nt1 = 200
+    nt2 = 200
+    nt3 = 200
+    # nt0 and nt1 should be small for large l
+    nt = nt0 + nt1 + nt2 + nt3
+
+    t0 = np.geomspace(1e-4,0.1,nt0 + 1)
+    t1 = np.linspace(0.01,0.5,nt1 + 1)
+    t2 = np.linspace(0.5,0.99,nt2 + 1)
+    t3 = np.geomspace(0.99,1,nt3)
+    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3))
+    """
+
+    #f = I_lim0(l, nu, t)
+    #g = I_bw(l, nu, t)
+    #h = np.concatenate((I_lim0(l, nu, t[np.where(t<0.5)]), I_bw(l, nu, t[np.where(t>=0.5)])))
+
     i = I(l,nu,t)
-    I0 = I_0(nu, t)
+    #j = Itaytay(l,nu,t)
+    #I0 = I_0(nu, t)
 
     print(I_att1(l,nu))
     tind=170
     #plt.plot(t,np.real(f),"r--")
     #plt.plot(t,np.imag(f),"b--")
-    plt.plot(t[tind:],np.real(g)[tind:],"r")
-    plt.plot(t[tind:],np.imag(g)[tind:],"b")
+    #plt.plot(t[tind:],np.real(g)[tind:],"r")
+    #plt.plot(t[tind:],np.imag(g)[tind:],"b")
     #plt.plot(t,np.real(h),"r--")
     #plt.plot(t,np.imag(h),"b--")
     #plt.plot(t,np.abs(h),"k-")
 
     #plt.plot(t, np.real(I0),".")
     #plt.plot(t, np.imag(I0),".")
-    plt.plot(t, np.real(i),"--")
-    plt.plot(t, np.imag(i),"--")
+    plt.plot(t, np.real(i),".")
+    plt.plot(t, np.imag(i),".")
+
+    #plt.plot(t, np.real(j),"--")
+    #plt.plot(t, np.imag(j),"--")
     plt.show()
 #plot_Ibw()
 

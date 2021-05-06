@@ -59,6 +59,11 @@ def chi(z):
     f = lambda zz: c/H(zz)
     zs = np.linspace(0,z,200)
     ch = integrate(zs,f(zs),ax=0)
+    if type(z) == np.ndarray and 0 in z:
+        ch[np.where(np.isnan(ch))] = 0
+        print("Invalid value encountered OK")
+        # zeros in z gives rise to nan in ch because of integration.
+        # We but the zero back in as chi(0) = 0
     return ch
 
 def chibar(z):
@@ -81,12 +86,36 @@ def omega_lambda(z):
     omega = omega_de*H0**2/H(z)**2
     return omega
 
-def alpha_M(z, alpha_M0 = 0):
+def alpha_M(z, c_M = 0):
     """
     Returns the alpha_M parameter (unitless)
     """
-    alpha = alpha_M0*omega_lambda(z)/omega_lambda(0)
+    alpha = c_M*omega_lambda(z)/omega_lambda(0)
     return alpha
+
+def delta_D(z, c_M = 0):
+    """
+    Returns the delta_D parameter (unitless)
+    """
+    n = 200
+    zprime = np.linspace(1e-10, z, n)
+    integrand = alpha_M(zprime, c_M)/(1 + zprime)
+    delta = 0.5*integrate(zprime, integrand, ax=0)
+    return delta
+
+def M_star_sq(z, c_M=0):
+    """
+    Returns M_*^2 in units m_P
+    """
+    zint = np.linspace(z,20,200) # alpha_M is approx zero beyond z = 20
+    integrand = alpha_M(zint, c_M)/(1+zint)
+    logM = integrate(zint, integrand, ax=0)
+    M = np.exp(logM)
+    return M
+
+def G_light(z, c_M=0):
+    G = 1/M_star_sq(z, c_M)*(1 + alpha_M(z, c_M)/2)
+    return G
 
 def mu(k, z):
     """
@@ -118,7 +147,7 @@ def Wg_j(z, z_j):
     J = CLASS(z_j)
     return J.Wg(z)
 
-def Wkappa(z, zp):
+def Wkappa(z, zp, c_M=0):
     """
     For 1D-arrays z, zp and k
     the returned Wk should be
@@ -130,14 +159,12 @@ def Wkappa(z, zp):
     A = np.zeros([len(z)] + list(np.shape(zp)))
     chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*2
-    W2 = 3/4*A*chifraction
-    Wtransp = np.transpose(W2)
-    W = np.transpose(Wtransp)
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    W = 3/2*A*chifraction
     W /= c # Unit correction for Wk to be unitless
     return W
 
-def Wk(z, zp, k):
+def Wk(z, zp, k, c_M=0):
     """
     For 1D-arrays z, zp and k
     the returned Wk should be
@@ -149,14 +176,14 @@ def Wk(z, zp, k):
     A = np.zeros((len(k), len(z), len(zp)))
     chiz = np.copy(A); np.transpose(chiz, (0,2,1))[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*mu(k,zp)*(gamma(k,zp) + 1)
-    W2 = 3/4*A*chifraction
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    W2 = 3/2*A*chifraction
     Wtransp = np.transpose(W2)#/k**2 # If k is included, multiply by h
     W = np.transpose(Wtransp)
     W /= c # Unit correction for Wk to be unitless
     return W
 
-def Wk2(z, zp, k):
+def Wk2(z, zp, k, c_M=0):
     """
     For arrays zp, k of equal length,
     returns shape (z, zp)
@@ -165,17 +192,31 @@ def Wk2(z, zp, k):
     A = np.zeros((len(z), len(zp)))
     chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*mu(k,zp)*(gamma(k,zp) + 1)
-    W2 = 3/4*A*chifraction
-    W = W2#/k**2
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    W = 3/2*A*chifraction
     W /= c # Unit correction for Wk to be unitless
     return W
+
+def WvFFTlog(z):
+    """
+    For 1D-arrays z
+    the returned Wk should be
+    of shape z
+
+    Units 1/Mpc
+    """
+    c = 299792458/1000 # km/s
+    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
+    W *= 1/c
+    return W
+
 
 def Wv(z, k):
     """
     For 1D-arrays z and k
     the returned Wk should be
     of shape (k, z)
+    k must be of units [h/Mpc]
 
     Units Mpc
     """
@@ -189,18 +230,21 @@ def Wv(z, k):
 
 def Wv2(z, k):
     """
-    For 1D-arrays z and k of equal
-    length, the returned Wk is
-    of shape (k)
+    For use with the Limber approx.
+
+    z, k must be of equal shape.
+    k must be of units [h/Mpc]
 
     Units Mpc
     """
     k *= 0.6763 # 1/Mpc
     c = 299792458/1000 # km/s
-    A = np.zeros((len(k)))
-    A[:] = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
-    W = A*1/k**2*1/c
+    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)*1/k**2
+    W *= 1/c
     return W
+
+def W_MG(z, c_M=0):
+    return Wt_i(z)*delta_D(z, c_M)
 
 
 def b_g(z):
@@ -212,9 +256,11 @@ def b_GW(z):
     return I.b_GW(z)
 
 
-def savechi(zmin=1e-10, zmax=20, N=1000):
-    z = np.geomspace(zmin,zmax,N)
+def savechi(zmin=0, zmax=10, N=10000):
+    z = np.linspace(zmin, zmax, N)
     ch = chi(z)
+    #plt.plot(z,ch,".")
+    #plt.show()
     np.save("zchiarr.npy", z)
     np.save("chiarr.npy", ch)
 #savechi()
@@ -231,17 +277,11 @@ def z_(chiarg, save=False):
     f = interp1d(ch, z)
     return f(chiarg)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""
+l = 100
+print((l-10)/(chi(0.1)*0.6763))
+x = np.linspace(0,150,1000)
+plt.plot(x, j(x, l))
+plt.show()
+"""
 #
