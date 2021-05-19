@@ -11,7 +11,7 @@ def GetPm(nz=int(1e2)):
 
     k = np.geomspace(1e-6, 2, nk)
     #z = np.linspace(0.01, 1.5, nz)
-    z = np.geomspace(1e-5, 1.5, nz)
+    z = np.geomspace(1e-5, 2.0, nz)
     # These quantities decides the points
     # we interpolate from
 
@@ -294,9 +294,9 @@ def P_m(k, z, z_prime, same_dim_on=False, samedim2=True):
 
 #z = np.linspace(0.01,1,1001)
 #z = 0.3
-#k = np.linspace(1e-4,0.2,1000)
+#k = np.linspace(1e-4,1.5,1000,".")
 #P = P_m(k, z, 1)
-#plt.plot(k, P,".--")
+#plt.loglog(k, P,".--")
 #plt.show()
 
 

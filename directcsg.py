@@ -363,32 +363,36 @@ def compute_integrands(P, P2, sg=False, tg=False, vg=False):
     return ints
 """
 
-def LimberCsg(l, zj, P=None, zt=None, c_M=0):
+def LimberCsg(l, zj, Pfunc=None, c_M=0):
     c = 299792458
     h = 0.6763
-    if zt is None:
-        zt = np.linspace(0.6,1.4,200)
-    if P is None:
-        karg = (l+0.5)/chi(zt)*1/h
+    nzt = 401
+    zt = np.linspace(zj[0], zj[-1],nzt)
+    karg = (l+0.5)/chi(zt)*1/h
+
+    if Pfunc is None:
         Pfunc = intpol(fetchP=True, c_M=c_M)
-        P = Pfunc(karg,zt)
-    integrand = (Ws_i(zt) + W_MG(zt, c_M))*Wg_j(zt, zj)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
+    P = Pfunc(karg, zt)
+
+    integrand = Wg_j(zt, zj)*Ws_i(zt, c_M)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
     integrand *= 1e3/c/h**3 # unitless
     Integral = integrate(zt,integrand)
     return Integral
 
-def LimberCtg(l, zj, P=None, z=None, zt=None, c_M=0):
+def LimberCtg(l, zj, Pfunc=None, z=None, c_M=0):
     c = 299792458
     h = 0.6763
     if z is None:
-        z = np.linspace(0.6,1.4,200)
-    if zt is None:
-        zt = np.linspace(0.1,1.4,200)
+        z = np.linspace(0.3,1.7,400)
+
+    nz = len(z)
+    nzt = 401
+    zt = np.linspace(zj[0], zj[-1],nzt)
     karg = (l+0.5)/chi(zt)*1/h
-    if P is None:
+
+    if Pfunc is None:
         Pfunc = intpol(fetchP=True, c_M=c_M)
-        P = Pfunc(karg,zt)
-    nz = len(z); nzt = len(zt)
+    P = Pfunc(karg,zt)
 
     A = np.zeros((nz,nzt))
     A[:] = zt
@@ -397,7 +401,7 @@ def LimberCtg(l, zj, P=None, z=None, zt=None, c_M=0):
 
     inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg, c_M)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
     integral1 = integrate(zt,inner_integrand,1)
-    outer_integrand = Wt_i(z)*integral1
+    outer_integrand = Wt_i(z, c_M)*integral1
     integral2 = integrate(z,outer_integrand)
     return integral2*1e3/c/h**3
 
@@ -437,10 +441,6 @@ def LimberCvgprep(l, z):
                              # same z!
     return prep
 
-#z = np.linspace(0.6, 1.4, 200)
-#LimberCvgprep(100, z)
-
-
 def LimberCvg(l, zj, z=None, deriv=None):
     """
     Unitless
@@ -464,47 +464,79 @@ def PlotLimbers():
     runindex = np.load("runindex.npy")
     np.save("runindex.npy", runindex + 1)
 
+    #c_M = 0
+    l = 100
+
     h = 0.6763
     delta_z = 0.1
-    nzg1 = 24
-    nzg2 = 27
+    nzg1 = 10
+    nzg2 = 100
     nzg = nzg1 + nzg2 # Number of data points
-    zg1 = np.linspace(0.1, 0.8, nzg1 + 1)
-    zg2 = np.linspace(0.8, 1.3, nzg2)
+    zg1 = np.linspace(0.1, 0.5, nzg1 + 1)
+    zg2 = np.linspace(0.5, 1.7, nzg2)
     zg = np.concatenate((zg1[:-1], zg2))
-    #C_sgLimber = np.copy(zg)
+    C_sgLimber = np.copy(zg)
+    C_sgLimber1 = np.copy(zg)
+    C_sgLimber2 = np.copy(zg)
+
     C_tgLimber = np.copy(zg)
+    C_tgLimber1 = np.copy(zg)
+    C_tgLimber2 = np.copy(zg)
     #C_vgLimber = np.copy(zg)
 
-    zt = np.linspace(0.1,1.4,200)
-    karg = (l+0.5)/chi(zt)*1/h
-    Pfunc = intpol()
-    P = Pfunc(karg,zt)
+    from hi_MatterSpectrum import intpol
+    #zt = np.linspace(0.1,1.4,200)
+    #karg = (l+0.5)/chi(zt)*1/h
+    Pfunc = intpol(fetchP=True, c_M=0)
+    Pfunc1 = intpol(fetchP=True, c_M=1)
+    Pfunc2 = intpol(fetchP=True, c_M=-1)
+    #P = Pfunc(karg,zt)
 
     for i in range(nzg):
         print("\nComputing datapoint {} out of {}".format(i+1,nzg))
         zg_elem = zg[i]
         zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
         Wg = Wg_j(zt, zj)
-        #C_sgLimber[i] = LimberCsg(l, zj, P, zt)
-        C_tgLimber[i] = LimberCtg(l, zj, P)
+        C_sgLimber[i] = LimberCsg(l, zj, Pfunc, c_M=0)
+        C_sgLimber1[i] = LimberCsg(l, zj, Pfunc1, c_M=1)
+        C_sgLimber2[i] = LimberCsg(l, zj, Pfunc2, c_M=-1)
+
+        C_tgLimber[i] = LimberCtg(l, zj, Pfunc, c_M=0)
+        C_tgLimber1[i] = LimberCtg(l, zj, Pfunc1, c_M=1)
+        C_tgLimber2[i] = LimberCtg(l, zj, Pfunc2, c_M=-1)
         #C_vgLimber[i] = LimberCvg(l, zj, P)
     #np.save("data/Cs/Csglimber.npy", C_sgLimber)
     #np.save("data/Cs/Ctglimber.npy", C_tgLimber)
     #np.save("data/Cs/Cvglimber.npy", C_vgLimber)
     #np.save("data/Cs/zglimber.npy", zg)
-    #plt.plot(zg, C_sgLimber,"r.-")
-    plt.plot(zg, C_tgLimber,"b.-")
+    plt.plot(zg, C_sgLimber,"r-")
+    plt.plot(zg, C_tgLimber,"r--")
+
+    plt.plot(zg, C_sgLimber1,"b-")
+    plt.plot(zg, C_tgLimber1,"b--")
+
+    plt.plot(zg, C_sgLimber2,"g-")
+    plt.plot(zg, C_tgLimber2,"g--")
+    #plt.plot(zg, C_tgLimber,"b.-")
     #plt.plot(zg, C_vgLimber,"g.-")
 
-    #x = np.load("zgdata.npy")
-    #C = np.load("Csgdata.npy")
+    #x = np.load("zgcm0.npy")
+    #C1 = np.load("Csgcm0.npy")
+    #C2 = np.load("Ctgcm0.npy")
+    #plt.plot(x, C1)
+    #plt.plot(x, C2)
     #plt.plot(x, C, "k.-")
 
     #plt.legend(["C_sgLimber(l={})".format(l), "C_tgLimber(l={})".format(l)])#, \
                 #"C_vgLimber(l={})".format(l)])
+    plt.title("$C^{xg}(\ell=100)$")
+    plt.legend(["$C^{sg}, c_{M} = 0$", "$C^{tg}, c_{M} = 0$", "$C^{sg}, c_{M} = 1$",\
+                "$C^{tg}, c_{M} = 1$", "$C^{sg}, c_{M} = -1$", "$C^{tg}, c_{M} = -1$"], frameon=False)
+    plt.xlabel("$z_g$")
+    plt.ylabel("$C^{xg}$")
     plt.yscale("log")
-    plt.axis([0.1,1.3, 1e-8,1e-4])
+    plt.axis([0.1,1.6, 1e-8,1e-4])
+    plt.savefig("MGLimbersCxg4", dpi=300)
     #plt.axis([0.01,1.4, 1e-12,1e-3])
     #plt.savefig("data/Limbers{}".format(runindex))
     plt.show()

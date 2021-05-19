@@ -144,7 +144,7 @@ def timing_I():
     #n = N
     n = np.array([i for i in range(-N,N+1)],dtype=complex)
     b = 1.5
-    kmin = 6.45e-3; kmax = 1e0
+    kmin = 1e-4; kmax = 1.5
     P = np.log(kmax/kmin)
     nu = 1j*2*np.pi*n/P + b
     #t = np.array([0.9])
@@ -299,7 +299,7 @@ def I_att0(nu):
 
 
 def I_taylor(l, nu, t):
-    kmin = 1e-4; kmax = 0.1
+    kmin = 1e-4; kmax = 1.5
     P = np.log(kmax/kmin)
     fac = 2*np.pi/P
     N = np.imag(nu/(fac))
@@ -418,7 +418,7 @@ def I2(l, nu, t):
     Cannot take nu-arrays as argument, only single values for now
     Can handle a maximum of n=+-200 corresponding to N = 200
     """
-    kmin = 1e-4; kmax = 0.1
+    kmin = 1e-4; kmax = 1.5
     P = np.log(kmax/kmin)
     fac = 2*np.pi/P
     N = np.imag(nu/(fac))
@@ -516,22 +516,31 @@ def Itaytay(l, nu, t):
 
 
 def plot_Ibw():
-    N = -99
+    N = 97
     n = N
     eps = 1e-4
     #n = np.array([i for i in range(-N,N+1)],dtype=complex)
     b = 1.5
-    kmin = 1e-4; kmax = 0.1
+    kmin = 1e-4; kmax = 1.5
     P = np.log(kmax/kmin)
-    nu = 1j*2*np.pi*n/P + b -2
-    #t = np.array([0.9])
-    t1 = np.linspace(0.01,0.85,600)
-    t2 = np.linspace(0.85,0.95,201)
-    #t3 = np.geomspace(0.95,1-eps,201)
-    t3 = np.geomspace(0.95,1-1e-12,201)
-    t = np.concatenate((t1,t2,t3))
-    t = np.linspace(0.5,2,1000)
-    l = 100
+    nu = 1j*2*np.pi*n/P + b
+
+    nt0 = 2
+    nt1 = 2
+    nt2 = 50
+    nt3 = 350
+    nt4 = 150
+    nt5 = 950
+    nt = nt0 + nt1 + nt2 + nt3 + nt4
+
+    t0 = np.geomspace(1e-4,0.1,nt0 + 1)
+    t1 = np.linspace(0.1,0.6,nt1 + 1)
+    t2 = np.linspace(0.6,0.8,nt2 + 1)
+    t3 = np.geomspace(0.8, 0.99, nt3 + 1)
+    t4 = np.geomspace(0.99, 0.999, nt4 + 1)
+    t5 = np.geomspace(0.999,20.4,nt5)
+    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3[:-1], t4[:-1], t5))
+    l = 2
 
     """
     nt0 = 200
@@ -556,7 +565,7 @@ def plot_Ibw():
     #j = Itaytay(l,nu,t)
     #I0 = I_0(nu, t)
 
-    print(I_att1(l,nu))
+    #print(I_att1(l,nu))
     tind=170
     #plt.plot(t,np.real(f),"r--")
     #plt.plot(t,np.imag(f),"b--")
@@ -568,6 +577,8 @@ def plot_Ibw():
 
     #plt.plot(t, np.real(I0),".")
     #plt.plot(t, np.imag(I0),".")
+    #plt.plot([t[0], t[-1]], [np.real(I_att1(l, nu)[0]), np.real(I_att1(l, nu)[0])])
+    #plt.plot([t[0], t[-1]], [np.imag(I_att1(l, nu)[0]), np.imag(I_att1(l, nu)[0])])
     plt.plot(t, np.real(i),".")
     plt.plot(t, np.imag(i),".")
 
@@ -655,7 +666,7 @@ def check():
         return Il
 
 
-    kmin = 1e-4; kmax = 0.1
+    kmin = 1e-4; kmax = 1.5
     P = np.log(kmax/kmin)
     n = 1
     b = 1.5

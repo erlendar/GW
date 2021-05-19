@@ -9,20 +9,20 @@ class Window_funcs(Number_dens):
     def __init__(self, z_i):
         super().__init__(z_i)
 
-    def Ws(self,z):
+    def Ws(self, z, c_M=0):
         """
         Returns the window function W_s (unitless)
         """
-        W = 1/self.n_av()*self.chi(z)**2/self.H(z)*\
-            self.S(z)*self.nav_GW(z)*self.c/1000
+        W = 1/self.n_av(c_M)*self.chi(z)**2/self.H(z)*\
+            self.S(z, c_M)*self.nav_GW(z)*self.c/1000
         return W
 
-    def Wt(self,z):
+    def Wt(self, z, c_M=0):
         """
         Returns the window function W_t (unitless)
         """
-        W = 1/self.n_av()*self.chi(z)**2/self.H(z)*\
-            self.T(z)*self.nav_GW(z)*self.c/1000
+        W = 1/self.n_av(c_M)*self.chi(z)**2/self.H(z)*\
+            self.T(z, c_M)*self.nav_GW(z)*self.c/1000
         return W
 
     def Wg(self,z):
@@ -30,8 +30,8 @@ class Window_funcs(Number_dens):
         Returns the window function W_g (unitless)
         """
         W = 1.0/self.nav_g()*self.chi(z)**2/self.H(z)*self.ng_av()*\
-            np.heaviside(z - self.z_min, 0)*\
-            np.heaviside(self.z_max - z, 0)*self.c/1000
+            np.heaviside(z - self.z_min, 1)*\
+            np.heaviside(self.z_max - z, 1)*self.c/1000
         return W
 
     def Wk(self, z, zz):
@@ -40,4 +40,12 @@ class Window_funcs(Number_dens):
         """
         W = self.rhom_av(z)/(self.H(z)*(1+z)*self.Sigma_crit(z,zz))
         W *= (self.c/1000)*(3.08567758*1e22)**2 # Get the units right
+        return W
+
+    def Wu(self,z, c_M=0):
+        """
+        Returns the window function W_u (unitless)
+        """
+        W = 1/self.n_av(c_M)*self.chi(z)**2/self.H(z)*\
+            self.U(z, c_M)*self.nav_GW(z)*self.c/1000
         return W

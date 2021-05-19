@@ -55,11 +55,39 @@ class Cosmo():
         b = self.integration(zz, c/self.H(zz))
         return b
 
-    def D(self,z):
+    def omega_lambda(self, z):
         """
-        Returns the luminosity distance in Mpc
+        Returns Omega_Lambda as a function
+        of the redshift (unitless)
         """
-        return self.chi(z) * (1 + z)
+        return self.omega_de*self.H0**2/self.H(z)**2
+
+    def alpha_M(self, z, c_M = 0):
+        """
+        Returns the alpha_M parameter (unitless)
+        """
+        alpha = c_M*self.omega_lambda(z)/self.omega_de
+        return alpha
+
+    def D_ratio(self, z, c_M = 0):
+        """
+        Returns the delta_D parameter (unitless)
+        """
+        n = 200
+        zprime = np.linspace(1e-10, z, n)
+        integrand = self.alpha_M(zprime, c_M)/(1 + zprime)
+        delta = 0.5*self.integration(zprime, integrand, ax=0)
+        return np.exp(delta)
+
+    def D(self, z, c_M=0):
+        """
+        Returns the luminosity distance in Mpc.
+        This is the standard FRW-D_L for c_M=0,
+        else it returns the effective measured
+        luminosity distance from a GW signal
+        in a MG-theory.
+        """
+        return self.chi(z) * (1 + z) * self.D_ratio(z, c_M)
 
     def D_A(self,z):
         """

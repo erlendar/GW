@@ -6,14 +6,16 @@ from class5 import CLASS
 from MatterSpectrum import P_m
 import os
 
-def GetPm_hi(nz=int(1e2), c_M=0):
+def GetPm_hi(nz=int(1e2), c_M=0, nk=1):
 
-    nk = 114 # This is determined by CLASS (?)
+    # This is determined by CLASS (?)
     #nz = int(2e3)
+    nk_tot = 114 + nk
 
-    k = np.geomspace(1e-6, 2, nk)
+    ks = np.geomspace(0.013*0.6763, 0.02*0.6763, nk)
+    #ks = np.geomspace(1e-6, 2, nk)
     #z = np.linspace(0.01, 1.5, nz)
-    z = np.geomspace(1e-5, 1.5, nz)
+    z = np.geomspace(1e-5, 2, nz)
     # These quantities decides the points
     # we interpolate from
 
@@ -59,6 +61,9 @@ def GetPm_hi(nz=int(1e2), c_M=0):
         sz = len(zs)*"{}, "
         sz = sz[:-2] + "\n"
 
+        sk = len(ks)*"{}, "
+        sk = sk[:-2] + "\n"
+
         s1 = "h = {}\n".format(h)\
            + "omega_b = {} # baryon density\n".format(omega_b*h**2)\
            + "omega_m = {}\n".format(omega_m)\
@@ -80,7 +85,8 @@ def GetPm_hi(nz=int(1e2), c_M=0):
           + "gravity_model = propto_omega\n"\
           + "parameters_smg = 1., 0, {}, 0., 1.\n".format(c_M)\
           + "expansion_model = lcdm\n"\
-          + "expansion_smg = 0.5\n"
+          + "expansion_smg = 0.5\n"\
+          + "k_output_values = " + sk.format(*ks) + "\n"
 
         SALT = S + s3 + sz + s4
         SALT = SALT.format(*zs)
@@ -109,7 +115,7 @@ def GetPm_hi(nz=int(1e2), c_M=0):
         runs = int(np.ceil(len(z)/max_z))
         # We will only run 40 values of z simultaneously in CLASS
         #P = z.copy()
-        P = np.zeros((nk,len(z)))
+        P = np.zeros((nk_tot,len(z)))
         print("CALCULATING THE MATTER POWER SPECTRUM ...")
         for n in range(runs):
             print("Working on run {} out of {}".format(n+1,runs))
@@ -120,7 +126,7 @@ def GetPm_hi(nz=int(1e2), c_M=0):
                 high_ind = max_z*(n+1)
             z_ = z[low_ind:high_ind]
             RunCLASS(z_)
-            Pk1 = np.zeros((len(z_),nk))
+            Pk1 = np.zeros((len(z_),nk_tot))
             for j in range(len(z_)):
                 FileToRead = "../../../Downloads/hi_class_public-hi_class/"\
                            + "/output/myhidataz{}_pk.dat".format(j+1)
@@ -363,7 +369,7 @@ def P_m_hi(k, z, z_prime, same_dim_on=False, samedim2=True, c_M=0):
 #k = np.linspace(1e-4,0.2,1000)
 #P = P_m_hi(k, z, 0.8, c_M=0)
 #P2 = P_m(k, z, 0.8)
-#plt.plot(k, P,"--")
+#plt.plot(k, P,".-")
 #plt.plot(k,P2,".")
 #plt.legend(["Modified Pm", "Original Pm"])
 #plt.show()

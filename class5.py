@@ -1,11 +1,13 @@
 from window_funcs4 import Window_funcs
+from scipy import interpolate
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 class CLASS(Window_funcs):
     def __init__(self, z_i):
         super().__init__(z_i)
-        self.max_z_args = 50
+        self.max_z_args = 40
         # Maximum number of z-arguments that you can have in
         # the CLASS input file
 
@@ -36,93 +38,50 @@ class CLASS(Window_funcs):
         """
         max_z = self.max_z_args
 
-        if len(np.shape(z)) >= 2: # i.e. if z is a matrix
+        if len(np.shape(z)) == 1:   # i.e. if z is a vector
+            P = self.P_m2(z,l)
+        elif len(np.shape(z)) == 2: # i.e. if z is a matrix
+                                    # Recall that it is the columns of z we
+                                    # want to find the power spectrum over!
             P = z.copy()
-            for i in range(len(z)):
-                zi = z[i]
-                runs = int(np.ceil(len(zi)/max_z))
-                Pi = zi.copy()
-                for n in range(runs):
-                    # We can only run 50 values of z simultaneously in CLASS
-                    low_ind = max_z*n
-                    if max_z*(n+1) >= len(zi):
-                        high_ind = -1
-                    else:
-                        high_ind = max_z*(n+1)
-
-                    z_ = zi[low_ind:high_ind]
-                    self.get_Pm(z_)
-                    wanted_ks = (l+0.5)/self.chi(z_) # 1/Mpc
-                    wanted_ks *= self.h
-
-                    found_Pks = np.copy(z_)
-
-                    for j in range(len(z_)):
-                        FileToRead = "../../Downloads/class_public-2.9.3"\
-                                   + "/output/mydataz{}_pk.dat".format(j+1)
-                        # Indexing starting at 0
-                        # Path to be generalized
-                        ks, Pks = self.read_output(FileToRead)
-
-                        diff = np.abs(ks-wanted_ks[j])
-                        ind = np.where(diff == np.min(diff))[0][0]
-                        found_Pks[j] = Pks[ind]
-
-                    Pi[low_ind:high_ind] = found_Pks
-                P[i] = Pi
-            return P
+            number_of_columns = len(z[0])
+            for i in range(number_of_columns):
+                zcol = z[:,i]
+                Pcol = self.P_m2(zcol,l)
+                P[:,i] = Pcol
+        return P
 
 
-
-        zs = self.zs
-        runs = int(np.ceil(len(zs)/max_z))
-        PPPPP = zs.copy()
+    def P_m2(self,zcol,l):
+        max_z = self.max_z_args
+        runs = int(np.ceil(len(zcol)/max_z))
+        Pcol = zcol.copy()
         for n in range(runs):
+            # We can only run 50 values of z simultaneously in CLASS
             low_ind = max_z*n
-            if max_z*(n+1) >= len(zs):
-                high_ind = -1
-                zss = zs[low_ind:high_ind]
+            if max_z*(n+1) >= len(zcol):
+                high_ind = None # Slicing x[i:None] gives all elements except the i first
             else:
                 high_ind = max_z*(n+1)
-                zss = zs[low_ind:high_ind]
-
-            self.get_Pm(zss)
-            wanted_ks = (l+0.5)/self.chi(zss) # 1/Mpc
+            z_ = zcol[low_ind:high_ind]
+            self.get_Pm(z_)
+            wanted_ks = (l+0.5)/self.chi(z_) # 1/Mpc
             wanted_ks *= self.h
 
-            found_Pks = []
-
-            for i in range(len(zss)):
-                ks = []
-                Pks = []
-                infile = open("../../Downloads/class_public-2.9.3/output/mydataz{}_pk.dat".format(i+1), "r")
+            found_Pks = np.copy(z_)
+            for j in range(len(z_)):
+                FileToRead = "../../../Downloads/class_public-2.9.3"\
+                           + "/output/mydataz{}_pk.dat".format(j+1)
                 # Indexing starting at 0
                 # Path to be generalized
-                infile.readline()
-                infile.readline()
-                infile.readline()
-                infile.readline()
-                for line in infile:
-                    columns = line.strip().split(" ")
-                    k = float(columns[0].strip())
-                    Pk = float(columns[-1].strip())
-                    ks.append(k)
-                    Pks.append(Pk)
-                infile.close()
+                ks, Pks = self.read_output(FileToRead)
 
-                ks = np.array(ks)
-                Pks = np.array(Pks)
+                Pkfunc = interpolate.interp1d(ks,Pks)
+                found_Pks[j] = Pkfunc(wanted_ks[j])
 
-                wanted_k = wanted_ks[i]
-                diff = np.abs(ks-wanted_k)
-                ind = np.where(diff == np.min(diff))[0][0]
-                found_Pk = Pks[ind]
-                found_Pks.append(found_Pk)
+            Pcol[low_ind:high_ind] = found_Pks
+        return Pcol
 
-            np.array(found_Pks)
-            PPPPP[low_ind:high_ind] = found_Pks
-
-        return PPPPP
 
 
     def get_Pm(self, zs):
@@ -144,15 +103,25 @@ class CLASS(Window_funcs):
            # Omega_cdm
         s3 = "root = output/mydata"
 
+        """
+        s1 = "\n".join([omega_b ..., omega_Lambda ...])
+        with open(jfkgkdjgkfd, "w") as fp:
+            fp.write(s)
+
+        path = pathlib.Path("../../Downloads/class_public-2.9.3/myrun.ini")
+        with path.open("w") as fp:
+            fp.write(s)
+        """
+
         s = s1 + s2 + s3
-        s = s.format(*zs) # Example
-        #print(s)
-        outfile = open("../../Downloads/class_public-2.9.3/myrun.ini", "w")
+        s = s.format(*zs)
+        outfile = open("../../../Downloads/class_public-2.9.3/myrun.ini", "w")
         outfile.write(s)
         outfile.close()
         # Create input file
 
         os.system("cd; cd Downloads/class_public-2.9.3; ./class myrun.ini")
+        # Subprocess
         # Run input file in Class from terminal
         # Paths to be generalized
         return None

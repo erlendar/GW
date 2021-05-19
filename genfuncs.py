@@ -75,33 +75,12 @@ def chibar(z):
 def Hcal(z):
     return H(z)/(1 + z)
 
-def omega_lambda(z):
-    """
-    Returns Omega_Lambda as a function
-    of the redshift (unitless)
-    """
-    omega_de = 0.692
-    h        = 0.6763
-    H0       = 100*h
-    omega = omega_de*H0**2/H(z)**2
-    return omega
-
 def alpha_M(z, c_M = 0):
     """
     Returns the alpha_M parameter (unitless)
     """
-    alpha = c_M*omega_lambda(z)/omega_lambda(0)
-    return alpha
-
-def delta_D(z, c_M = 0):
-    """
-    Returns the delta_D parameter (unitless)
-    """
-    n = 200
-    zprime = np.linspace(1e-10, z, n)
-    integrand = alpha_M(zprime, c_M)/(1 + zprime)
-    delta = 0.5*integrate(zprime, integrand, ax=0)
-    return delta
+    I = CLASS(z_i)
+    return I.alpha_M(z, c_M)
 
 def M_star_sq(z, c_M=0):
     """
@@ -116,6 +95,17 @@ def M_star_sq(z, c_M=0):
 def G_light(z, c_M=0):
     G = 1/M_star_sq(z, c_M)*(1 + alpha_M(z, c_M)/2)
     return G
+
+
+#a0 = 1
+#eps0 =1.4
+#z = np.linspace(0,1.3,1000)
+#plt.plot(z, 1+delta_D(z, c_M=a0))
+#plt.plot(z, np.exp(delta_D(z, c_M=a0)))
+#plt.plot(z, eps0 + (1-eps0)/(1+z)**1)
+#plt.legend(["Perturbation", "Full evaluation","Rec-paper"])
+#plt.show()
+
 
 def mu(k, z):
     """
@@ -135,13 +125,13 @@ def omega_matter(z):
     omega = omega_m*(1 + z)**3/(omega_de + omega_m*(1 + z)**3)
     return omega
 
-def Ws_i(z):
+def Ws_i(z, c_M=0):
     I = CLASS(z_i)
-    return I.Ws(z)
+    return I.Ws(z, c_M)
 
-def Wt_i(z):
+def Wt_i(z, c_M=0):
     I = CLASS(z_i)
-    return I.Wt(z)
+    return I.Wt(z, c_M)
 
 def Wg_j(z, z_j):
     J = CLASS(z_j)
@@ -197,7 +187,7 @@ def Wk2(z, zp, k, c_M=0):
     W /= c # Unit correction for Wk to be unitless
     return W
 
-def WvFFTlog(z):
+def WvFFTlog(z, c_M=0):
     """
     For 1D-arrays z
     the returned Wk should be
@@ -206,12 +196,12 @@ def WvFFTlog(z):
     Units 1/Mpc
     """
     c = 299792458/1000 # km/s
-    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
+    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z, c_M)/2)*f(z)*H(z)/(1+z)
     W *= 1/c
     return W
 
 
-def Wv(z, k):
+def Wv(z, k, c_M=0):
     """
     For 1D-arrays z and k
     the returned Wk should be
@@ -223,12 +213,12 @@ def Wv(z, k):
     k *= 0.6763 # 1/Mpc
     c = 299792458/1000 # km/s
     A = np.zeros((len(k), len(z)))
-    A[:] = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)
+    A[:] = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z, c_M)/2)*f(z)*H(z)/(1+z)
     Wtransp = np.transpose(A)*1/k**2*1/c
     W = np.transpose(Wtransp)
     return W
 
-def Wv2(z, k):
+def Wv2(z, k, c_M=0):
     """
     For use with the Limber approx.
 
@@ -239,12 +229,9 @@ def Wv2(z, k):
     """
     k *= 0.6763 # 1/Mpc
     c = 299792458/1000 # km/s
-    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z)/2)*f(z)*H(z)/(1+z)*1/k**2
+    W = -(1 - c/(Hcal(z)*chi(z)) + alpha_M(z, c_M)/2)*f(z)*H(z)/(1+z)*1/k**2
     W *= 1/c
     return W
-
-def W_MG(z, c_M=0):
-    return Wt_i(z)*delta_D(z, c_M)
 
 
 def b_g(z):
@@ -256,9 +243,16 @@ def b_GW(z):
     return I.b_GW(z)
 
 
-def savechi(zmin=0, zmax=10, N=10000):
-    z = np.linspace(zmin, zmax, N)
+def savechi(zmin=0, zmax=2e4, N=int(4e3)):
+    if zmax>100:
+        z1 = np.linspace(zmin,1.8,1000)
+        z2 = np.geomspace(1.8,100,100)
+        z3 = np.linspace(100, zmax,N)
+        z = np.concatenate((z1[:-1], z2[:-1], z3))
+    else:
+        z = np.linspace(zmin, zmax, N)
     ch = chi(z)
+
     #plt.plot(z,ch,".")
     #plt.show()
     np.save("zchiarr.npy", z)
@@ -277,11 +271,9 @@ def z_(chiarg, save=False):
     f = interp1d(ch, z)
     return f(chiarg)
 
-"""
-l = 100
-print((l-10)/(chi(0.1)*0.6763))
-x = np.linspace(0,150,1000)
-plt.plot(x, j(x, l))
-plt.show()
-"""
+
+
+
+
+
 #

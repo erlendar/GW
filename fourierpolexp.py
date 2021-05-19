@@ -16,7 +16,7 @@ def Pm(k, z, zt):
     return P_m(k, z, zt)
 """
 
-def W(k, k_left=kmin+1e-2, k_right=kmax-1e-2):
+def W(k, k_left=kmin+1e-2, k_right=kmax-2e-1):
     l_fac = (k - kmin)/(k_left - kmin)
     r_fac = (kmax - k)/(kmax - k_right)
     Wleft = l_fac - 1/(2*np.pi)*np.sin(2*np.pi*l_fac)
@@ -29,10 +29,12 @@ def W(k, k_left=kmin+1e-2, k_right=kmax-1e-2):
 
 def Pm0(k, z, zt, samedim2=True, c_M=0):
     #Returns the dimensionless unequal time matter power spectrum
+    """
     if c_M == 0:
         P = P_m(k, z, zt, samedim2=samedim2)
     else:
-        P = P_m_hi(k, z, zt, samedim2=samedim2, c_M=c_M)
+    """
+    P = P_m_hi(k, z, zt, samedim2=samedim2, c_M=c_M)
     k3arr = np.copy(P)
     np.transpose(k3arr)[:] = k**3
     return P*k3arr
@@ -97,13 +99,13 @@ def c_chi(chi1, chi2, N=int(1e2), samedim2=True, c_M=0):
 def nu_func(n):
     return 1j*2*np.pi*n/P
 
-def PmFourier(k, z, zt):
+def PmFourier(k, z, zt, c_M=0):
     """
     Computes the polynomial series of Pm (mainly for comparison with Pm
     to validate the coefficients c)
     """
     N = int(1e2)
-    cs = c(z, zt, N)
+    cs = c(z, zt, N, c_M=c_M)
     nu = np.zeros((N+1), dtype=complex)
     series = 0
     for n in range(N+1):
@@ -174,8 +176,8 @@ def compare_fourier():
     k = np.geomspace(kmin,kmax,400)
 
     z = 0.47; zt = 1.056
-    I1 = integrate(k,Pm(k, z, zt))
-    I2 = integrate(k,PmFourier(k, z, zt))
+    I1 = integrate(k,Pm(k, z, zt, c_M=0))
+    I2 = integrate(k,PmFourier(k, z, zt, c_M=0))
     print(I1/I2)
 
     plt.plot(k,Pm(k, z, zt),"k.")
