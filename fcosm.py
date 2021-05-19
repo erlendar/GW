@@ -102,7 +102,6 @@ def Big_W(ch, c_M=0, zj=[0.5]):
 
 
 
-
 def create_F(t, ch, Wsi, Wgj, nus, cs):
     F = np.zeros((len(t),len(ch), len(nus)), dtype=complex)
     Ffac = np.copy(F)
@@ -115,7 +114,7 @@ def create_F(t, ch, Wsi, Wgj, nus, cs):
     return Fintegral
 
 
-def make_oguriplot(reset_runindex=False, N=100, c_M=0):
+def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
     if reset_runindex:
         np.save("fftlogindex.npy", 1)
     fftlogindex = np.load("fftlogindex.npy")
@@ -208,16 +207,16 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0):
     timespent = (time2-time1)/60
     print("Time spent: {:.1f} minutes".format(timespent))
 
-    np.save("zFcm{}.npy".format(c_M), zg)
-    np.save("nus.npy", nus)
-    np.save("Fsgcm{}.npy".format(c_M), Fsg)
-    np.save("Ftgcm{}.npy".format(c_M), Ftg)
+    if savearrays:
+        np.save("zFcm{}.npy".format(c_M), zg)
+        np.save("nus.npy", nus)
+        np.save("t_intpol.npy", t) # for interpolation later
+        np.save("Fsgcm{}.npy".format(c_M), Fsg)
+        np.save("Ftgcm{}.npy".format(c_M), Ftg)
 
 
 
-make_oguriplot(c_M=0)
-
-#print(3200/(chi(0.05)*0.6763))
+#make_oguriplot(c_M=0, savearrays=False)
 
 
 

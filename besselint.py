@@ -516,7 +516,7 @@ def Itaytay(l, nu, t):
 
 
 def plot_Ibw():
-    N = 97
+    N = 25
     n = N
     eps = 1e-4
     #n = np.array([i for i in range(-N,N+1)],dtype=complex)
@@ -527,20 +527,26 @@ def plot_Ibw():
 
     nt0 = 2
     nt1 = 2
-    nt2 = 50
+    nt2 = 150
     nt3 = 350
     nt4 = 150
-    nt5 = 950
-    nt = nt0 + nt1 + nt2 + nt3 + nt4
+    nt5 = 200
+    nex = 300
+    nt6 = 300
+    nt7 = 300
+    nt = nt0 + nt1 + nt2 + nt3 + nt4 + nt5 + nt6 + nt7 + nex
 
     t0 = np.geomspace(1e-4,0.1,nt0 + 1)
     t1 = np.linspace(0.1,0.6,nt1 + 1)
     t2 = np.linspace(0.6,0.8,nt2 + 1)
     t3 = np.geomspace(0.8, 0.99, nt3 + 1)
     t4 = np.geomspace(0.99, 0.999, nt4 + 1)
-    t5 = np.geomspace(0.999,20.4,nt5)
-    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3[:-1], t4[:-1], t5))
-    l = 2
+    t5 = np.linspace(0.999,1,nt5)
+    tex = np.linspace(1,1.005,nex+1)
+    t6 = np.geomspace(1.005,1.06,nt6+1)
+    t7 = np.linspace(1.06,1.5,nt7)
+    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3[:-1], t4[:-1], t5, tex[1:], t6[:-1], t7))
+    l = 100
 
     """
     nt0 = 200
@@ -565,7 +571,7 @@ def plot_Ibw():
     #j = Itaytay(l,nu,t)
     #I0 = I_0(nu, t)
 
-    #print(I_att1(l,nu))
+    print(I_att1(l,nu))
     tind=170
     #plt.plot(t,np.real(f),"r--")
     #plt.plot(t,np.imag(f),"b--")
