@@ -27,14 +27,14 @@ def W(k, k_left=kmin+1e-2, k_right=kmax-2e-1):
     return np.where(Warr > k_right, Wright, W)
 
 
-def Pm0(k, z, zt, samedim2=True, c_M=0):
+def Pm0(k, z, zt, samedim2=True, c_M=0, c_B=0):
     #Returns the dimensionless unequal time matter power spectrum
     """
-    if c_M == 0:
+    if c_M == 0 and c_B == 0:
         P = P_m(k, z, zt, samedim2=samedim2)
     else:
     """
-    P = P_m_hi(k, z, zt, samedim2=samedim2, c_M=c_M)
+    P = P_m_hi(k, z, zt, samedim2=samedim2, c_M=c_M, c_B=c_B)
     k3arr = np.copy(P)
     np.transpose(k3arr)[:] = k**3
     return P*k3arr
@@ -47,16 +47,16 @@ def Pm_no_W(k, z, zt):
     np.transpose(kbarr)[:] = k**(-b)
     return P*kbarr
 
-def Pm(k, z, zt, samedim2=True, c_M=0):
+def Pm(k, z, zt, samedim2=True, c_M=0, c_B=0):
     #Returns the dimensionless unequal time matter power spectrum
     #with the k^(-b)-factor and window. This is what we want to express in
     #polynomials of k.
-    P = Pm0(k, z, zt, samedim2=samedim2, c_M=c_M)
+    P = Pm0(k, z, zt, samedim2=samedim2, c_M=c_M, c_B=c_B)
     kbarr = np.copy(P)
     np.transpose(kbarr)[:] = k**(-b)*W(k) # W(k) is window to avoid ringing effects
     return P*kbarr
 
-def g(k, z, zt, samedim2=True, c_M=0):
+def g(k, z, zt, samedim2=True, c_M=0, c_B=0):
     """
     Function we find the Fourier series of
     g(k, z, zt) = Pm(exp(k), z, zt)
@@ -69,19 +69,19 @@ def g(k, z, zt, samedim2=True, c_M=0):
     while len(np.where(kk>np.log(kmax))[0]) > 0 or len(np.where(kk<np.log(kmin))[0]) > 0:
         kk[np.where(kk>np.log(kmax))] -= P
         kk[np.where(kk<np.log(kmin))] += P
-    return Pm(np.exp(kk), z, zt, samedim2=samedim2, c_M=c_M)
+    return Pm(np.exp(kk), z, zt, samedim2=samedim2, c_M=c_M, c_B=c_B)
 
-def c(z, zt, N=int(1e2), samedim2=True, c_M=0):
+def c(z, zt, N=int(1e2), samedim2=True, c_M=0, c_B=0):
     """
     Finds the coefficients of the Fourier series of g
     (corresponding to the polynomial series of Pm!)
     """
     f_sample = 2*N
     t = np.linspace(0, P, f_sample+2, endpoint=False)
-    c = np.fft.rfft(g(t, z, zt, samedim2=samedim2, c_M=c_M),axis=0)/t.size
+    c = np.fft.rfft(g(t, z, zt, samedim2=samedim2, c_M=c_M, c_B=c_B),axis=0)/t.size
     return c
 
-def c_chi(chi1, chi2, N=int(1e2), samedim2=True, c_M=0):
+def c_chi(chi1, chi2, N=int(1e2), samedim2=True, c_M=0, c_B=0):
     """
     Takes chi1, chi2 as input, in units Mpc/h
 
@@ -94,7 +94,7 @@ def c_chi(chi1, chi2, N=int(1e2), samedim2=True, c_M=0):
     """
     h = 0.6763
     z = z_(chi1/h); zt = z_(chi2/h) # z_ reads chi in units Mpc
-    return c(z, zt, N, samedim2=samedim2, c_M=c_M)
+    return c(z, zt, N, samedim2=samedim2, c_M=c_M, c_B=c_B)
 
 def nu_func(n):
     return 1j*2*np.pi*n/P

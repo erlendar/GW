@@ -45,7 +45,7 @@ def Wbar_ti(chi, c_M=0):
     z = z_(chi/h) # z_ reads chi in units Mpc
     return Wt_i(z, c_M)*H(z)/(c*h)
 
-def Wbar_k(chi, chi_p, c_M=0):
+def Wbar_k(chi, chi_p, c_M=0, c_B=0):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -56,10 +56,10 @@ def Wbar_k(chi, chi_p, c_M=0):
     c = 299792458/1000 # km/s
     z = z_(chi/h) # z_ reads chi in units Mpc
     z_p = z_(chi_p/h)
-    return Wkappa(z, z_p, c_M)*H(z_p)/(c*h)
+    return Wkappa(z, z_p, c_M, c_B)*H(z_p)/(c*h)
 
 
-def Big_W(ch, c_M=0, zj=[0.5]):
+def Big_W(ch, c_M=0, c_B=0, zj=[0.5]):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -84,7 +84,7 @@ def Big_W(ch, c_M=0, zj=[0.5]):
     np.transpose(diff)[:] = chi_tilda
     diff -= ch
 
-    W2 = Wbar_k(chi_tilda, ch, c_M)
+    W2 = Wbar_k(chi_tilda, ch, c_M, c_B)
     if len(np.shape(W2)) == 3:
         W2 = np.transpose(W2,(1,2,0))
         Heavi = np.transpose(np.heaviside(diff, 0),(1,2,0))
@@ -114,7 +114,7 @@ def create_F(t, ch, Wsi, Wgj, nus, cs):
     return Fintegral
 
 
-def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
+def make_oguriplot(reset_runindex=False, N=100, c_M=0, c_B=0, savearrays=False):
     if reset_runindex:
         np.save("fftlogindex.npy", 1)
     fftlogindex = np.load("fftlogindex.npy")
@@ -125,8 +125,8 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
     """
 
     time1 = time.time()
-    nt1 = 300
-    nt2 = 100
+    nt1 = 400
+    nt2 = 300
     nt = nt1 + nt2
     nch = 101
     nch_intp = 500
@@ -147,7 +147,7 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
     ch_t_intp *= ch_intp
 
     print("Finding Fourier coefficients")
-    coeffs = c_chi(ch_intp, ch_t_intp, N, c_M=c_M)
+    coeffs = c_chi(ch_intp, ch_t_intp, N, c_M=c_M, c_B=c_B)
     #print(np.shape(np.where(np.isnan(coeffs))))
     coeffs[np.where(np.isnan(coeffs))] = 0
 
@@ -169,7 +169,7 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
     bigchirange=chi(bigz)*h
     bigchi = np.linspace(bigchirange[0], bigchirange[-1], 500)
     Wsi = Wbar_si(ch_intp, c_M)
-    Wbig = Big_W(bigchi, c_M)
+    Wbig = Big_W(bigchi, c_M, c_B)
     Wsi_intp = interpolate.interp1d(ch_intp, Wsi, axis=0, bounds_error=False, fill_value=0)
     Wbig_intp = interpolate.interp1d(bigchi, Wbig, axis=0, bounds_error=False, fill_value=0)
 
@@ -186,6 +186,7 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
     delta_z = 0.1
     nzg = 200
     zg = np.linspace(0.1, 1.7, nzg)
+    #zg = np.linspace(1.1, 1.5, nzg)
     Fsg = np.zeros((nzg, len(t), len(nus)), dtype=complex)
     Ftg = np.zeros((nzg, len(t), len(nus)), dtype=complex)
 
@@ -203,20 +204,21 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, savearrays=False):
         Fsg[i] = create_F(t, ch, Wsi, Wgj, nus, cs)
         Ftg[i] = create_F(t, ch, Wbig, Wgj, nus, cs)
 
+
     time2 = time.time()
     timespent = (time2-time1)/60
     print("Time spent: {:.1f} minutes".format(timespent))
 
     if savearrays:
-        np.save("zFcm{}.npy".format(c_M), zg)
-        np.save("nus.npy", nus)
-        np.save("t_intpol.npy", t) # for interpolation later
-        np.save("Fsgcm{}.npy".format(c_M), Fsg)
-        np.save("Ftgcm{}.npy".format(c_M), Ftg)
+        np.save("zFcm{}cb{}.npy".format(c_M, c_B), zg)
+        np.save("nuscm{}cb{}.npy".format(c_M, c_B), nus)
+        np.save("t_intpolcm{}cb{}.npy".format(c_M, c_B), t) # for interpolation later
+        np.save("Fsgcm{}cb{}.npy".format(c_M, c_B), Fsg)
+        np.save("Ftgcm{}cb{}.npy".format(c_M, c_B), Ftg)
 
 
 
-#make_oguriplot(c_M=0, savearrays=False)
+#make_oguriplot(c_M=-0.4, c_B=0.8, savearrays=True)
 
 
 

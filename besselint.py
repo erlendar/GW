@@ -516,7 +516,7 @@ def Itaytay(l, nu, t):
 
 
 def plot_Ibw():
-    N = 25
+    N = 65
     n = N
     eps = 1e-4
     #n = np.array([i for i in range(-N,N+1)],dtype=complex)
@@ -525,28 +525,32 @@ def plot_Ibw():
     P = np.log(kmax/kmin)
     nu = 1j*2*np.pi*n/P + b
 
-    nt0 = 2
-    nt1 = 2
+    nt0 = 100
+    nt1 = 100
     nt2 = 150
     nt3 = 350
     nt4 = 150
     nt5 = 200
-    nex = 300
+    nt52 = 100
+    nt53 = 100
+    nex = 400
     nt6 = 300
-    nt7 = 300
-    nt = nt0 + nt1 + nt2 + nt3 + nt4 + nt5 + nt6 + nt7 + nex
+    nt7 = 500
+    nt = nt0 + nt1 + nt2 + nt3 + nt4 + nt5 + nt52 + nt53 + nt6 + nt7 + nex
 
-    t0 = np.geomspace(1e-4,0.1,nt0 + 1)
+    t0 = np.linspace(0,0.1,nt0 + 1)
     t1 = np.linspace(0.1,0.6,nt1 + 1)
     t2 = np.linspace(0.6,0.8,nt2 + 1)
     t3 = np.geomspace(0.8, 0.99, nt3 + 1)
     t4 = np.geomspace(0.99, 0.999, nt4 + 1)
-    t5 = np.linspace(0.999,1,nt5)
-    tex = np.linspace(1,1.005,nex+1)
+    t5 = np.linspace(0.999,0.9999,nt5 + 1)
+    t52 = np.linspace(0.9999,1,nt52 +1)
+    t53 = np.linspace(1,1.0001, nt53+1)
+    tex = np.geomspace(1.0001,1.005,nex+1)
     t6 = np.geomspace(1.005,1.06,nt6+1)
-    t7 = np.linspace(1.06,1.5,nt7)
-    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3[:-1], t4[:-1], t5, tex[1:], t6[:-1], t7))
-    l = 100
+    t7 = np.geomspace(1.06,5.4,nt7)
+    t = np.concatenate((t0[:-1], t1[:-1],t2[:-1],t3[:-1], t4[:-1], t5[:-1], t52[:-1], t53[:-1], tex[:-1], t6[:-1], t7))
+    l = 5
 
     """
     nt0 = 200

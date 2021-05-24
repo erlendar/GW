@@ -6,16 +6,20 @@ from class5 import CLASS
 from MatterSpectrum import P_m
 import os
 
-def GetPm_hi(nz=int(1e2), c_M=0, nk=1):
+def GetPm_hi(nz=int(4e2), c_M=0, c_B=0, nk=30):
 
     # This is determined by CLASS (?)
     #nz = int(2e3)
     nk_tot = 114 + nk
 
-    ks = np.geomspace(0.013*0.6763, 0.02*0.6763, nk)
+    #ks = np.geomspace(0.013*0.6763, 0.02*0.6763, nk)
+    ks = np.geomspace(0.008*0.6763, 0.03*0.6763, nk)
     #ks = np.geomspace(1e-6, 2, nk)
     #z = np.linspace(0.01, 1.5, nz)
-    z = np.geomspace(1e-5, 2, nz)
+    #z = np.geomspace(1e-5, 40, nz)
+    z = np.linspace(0, 10, nz-100)
+    z2 = np.linspace(10,100,100)[1:]
+    z = np.concatenate((z, z2))
     # These quantities decides the points
     # we interpolate from
 
@@ -83,7 +87,7 @@ def GetPm_hi(nz=int(1e2), c_M=0, nk=1):
           + "Omega_fld = 0\n"\
           + "Omega_smg = -1\n"\
           + "gravity_model = propto_omega\n"\
-          + "parameters_smg = 1., 0, {}, 0., 1.\n".format(c_M)\
+          + "parameters_smg = 1., {}, {}, 0., 1.\n".format(c_B, c_M)\
           + "expansion_model = lcdm\n"\
           + "expansion_smg = 0.5\n"\
           + "k_output_values = " + sk.format(*ks) + "\n"
@@ -152,9 +156,9 @@ def GetDat():
     P = np.load("hi_Parray.npy")
     return k, z, P
 
-def intpol(fetchP=False, c_M=0):
+def intpol(fetchP=False, c_M=0, c_B=0):
     if fetchP:
-        GetPm_hi(c_M=c_M)
+        GetPm_hi(c_M=c_M, c_B=c_B)
     k, z, P = GetDat()
     points = []
     vals = []
@@ -283,8 +287,8 @@ def P_m(k, z, z_prime):
 
 
 
-def P_m_hi(k, z, z_prime, same_dim_on=False, samedim2=True, c_M=0):
-    GetPm_hi(c_M=c_M)
+def P_m_hi(k, z, z_prime, same_dim_on=False, samedim2=True, c_M=0, c_B=0):
+    GetPm_hi(c_M=c_M, c_B=c_B)
     """
     Returns the unequal time matter power spectrum
     by using the geometric approximation
@@ -363,17 +367,17 @@ def P_m_hi(k, z, z_prime, same_dim_on=False, samedim2=True, c_M=0):
 
 
 
-
-#z = np.linspace(0.01,1,1001)
-#z = 0.9
-#k = np.linspace(1e-4,0.2,1000)
-#P = P_m_hi(k, z, 0.8, c_M=0)
-#P2 = P_m(k, z, 0.8)
-#plt.plot(k, P,".-")
-#plt.plot(k,P2,".")
+"""
+#z = np.linspace(0,100,1001)
+z = 0.9
+k = np.linspace(1e-4,0.2,1000)
+P = P_m_hi(k, z, 0.8, c_B=0.8, c_M=-0.4)
+P2 = P_m(k, z, 0.8)
+plt.plot(k, P,".-")
+plt.plot(k,P2,".")
 #plt.legend(["Modified Pm", "Original Pm"])
-#plt.show()
-
+plt.show()
+"""
 
 
 

@@ -82,6 +82,18 @@ def alpha_M(z, c_M = 0):
     I = CLASS(z_i)
     return I.alpha_M(z, c_M)
 
+def alpha_B(z, c_B = 0):
+    """
+    Returns the alpha_M parameter (unitless)
+    """
+    I = CLASS(z_i)
+    return I.alpha_M(z, c_B)
+
+def alpha_Bderiv(z, c_B = 0):
+    func = lambda zz: alpha_B(zz, c_B)
+    deriv = ms.derivative(func, z, dx=1e-5)
+    return deriv
+
 def M_star_sq(z, c_M=0):
     """
     Returns M_*^2 in units m_P
@@ -92,10 +104,15 @@ def M_star_sq(z, c_M=0):
     M = np.exp(logM)
     return M
 
-def G_light(z, c_M=0):
-    G = 1/M_star_sq(z, c_M)*(1 + alpha_M(z, c_M)/2)
+def G_light(z, c_M=0, c_B=0):
+    if c_M == 0 and c_B == 0:
+        return np.ones((np.shape(z)))
+    nom = (2 + alpha_M(z, c_M))*(alpha_B(z, c_B) + 2*alpha_M(z, c_M)) \
+        + 2*alpha_Bderiv(z, c_B)
+    denom = (2 - alpha_B(z, c_B))*(alpha_B(z, c_B) + 2*alpha_M(z, c_M)) \
+        + 2*alpha_Bderiv(z, c_B)
+    G = 1/M_star_sq(z, c_M)*nom/denom
     return G
-
 
 #a0 = 1
 #eps0 =1.4
@@ -137,7 +154,7 @@ def Wg_j(z, z_j):
     J = CLASS(z_j)
     return J.Wg(z)
 
-def Wkappa(z, zp, c_M=0):
+def Wkappa(z, zp, c_M=0, c_B=0):
     """
     For 1D-arrays z, zp and k
     the returned Wk should be
@@ -149,12 +166,12 @@ def Wkappa(z, zp, c_M=0):
     A = np.zeros([len(z)] + list(np.shape(zp)))
     chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M, c_B)
     W = 3/2*A*chifraction
     W /= c # Unit correction for Wk to be unitless
     return W
 
-def Wk(z, zp, k, c_M=0):
+def Wk(z, zp, k, c_M=0, c_B=0):
     """
     For 1D-arrays z, zp and k
     the returned Wk should be
@@ -166,14 +183,14 @@ def Wk(z, zp, k, c_M=0):
     A = np.zeros((len(k), len(z), len(zp)))
     chiz = np.copy(A); np.transpose(chiz, (0,2,1))[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M, c_B)
     W2 = 3/2*A*chifraction
     Wtransp = np.transpose(W2)#/k**2 # If k is included, multiply by h
     W = np.transpose(Wtransp)
     W /= c # Unit correction for Wk to be unitless
     return W
 
-def Wk2(z, zp, k, c_M=0):
+def Wk2(z, zp, k, c_M=0, c_B=0):
     """
     For arrays zp, k of equal length,
     returns shape (z, zp)
@@ -182,7 +199,7 @@ def Wk2(z, zp, k, c_M=0):
     A = np.zeros((len(z), len(zp)))
     chiz = np.copy(A); np.transpose(chiz)[:] = chi(z)
     chifraction = (chiz - chi(zp))*chi(zp)/chiz
-    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M)
+    A[:] = omega_matter(zp)*H(zp)/(1 + zp)**2*G_light(zp, c_M, c_B)
     W = 3/2*A*chifraction
     W /= c # Unit correction for Wk to be unitless
     return W

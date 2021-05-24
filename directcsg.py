@@ -363,7 +363,8 @@ def compute_integrands(P, P2, sg=False, tg=False, vg=False):
     return ints
 """
 
-def LimberCsg(l, zj, Pfunc=None, c_M=0):
+
+def LimberCsg(l, zj, Pfunc=None, c_M=0, c_B=0):
     c = 299792458
     h = 0.6763
     nzt = 401
@@ -371,7 +372,7 @@ def LimberCsg(l, zj, Pfunc=None, c_M=0):
     karg = (l+0.5)/chi(zt)*1/h
 
     if Pfunc is None:
-        Pfunc = intpol(fetchP=True, c_M=c_M)
+        Pfunc = intpol(fetchP=True, c_M=c_M, c_B=c_B)
     P = Pfunc(karg, zt)
 
     integrand = Wg_j(zt, zj)*Ws_i(zt, c_M)*H(zt)/chi(zt)**2*b_GW(zt)*b_g(zt)*P
@@ -379,7 +380,7 @@ def LimberCsg(l, zj, Pfunc=None, c_M=0):
     Integral = integrate(zt,integrand)
     return Integral
 
-def LimberCtg(l, zj, Pfunc=None, z=None, c_M=0):
+def LimberCtg(l, zj, Pfunc=None, z=None, c_M=0, c_B=0):
     c = 299792458
     h = 0.6763
     if z is None:
@@ -399,7 +400,7 @@ def LimberCtg(l, zj, Pfunc=None, z=None, c_M=0):
     diff = np.transpose(z - np.transpose(A))
     Heaviside = np.heaviside(diff, 0)
 
-    inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg, c_M)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
+    inner_integrand = Wg_j(zt, zj)*Wk2(z,zt,karg, c_M, c_B)*H(zt)/chi(zt)**2*b_g(zt)*P*Heaviside
     integral1 = integrate(zt,inner_integrand,1)
     outer_integrand = Wt_i(z, c_M)*integral1
     integral2 = integrate(z,outer_integrand)
@@ -487,9 +488,9 @@ def PlotLimbers():
     from hi_MatterSpectrum import intpol
     #zt = np.linspace(0.1,1.4,200)
     #karg = (l+0.5)/chi(zt)*1/h
-    Pfunc = intpol(fetchP=True, c_M=0)
-    Pfunc1 = intpol(fetchP=True, c_M=1)
-    Pfunc2 = intpol(fetchP=True, c_M=-1)
+    #Pfunc = intpol(fetchP=True, c_M=0)
+    #Pfunc1 = intpol(fetchP=True, c_M=1)
+    Pfunc2 = intpol(fetchP=True, c_M=-0.4, c_B=0.8)
     #P = Pfunc(karg,zt)
 
     for i in range(nzg):
@@ -497,18 +498,21 @@ def PlotLimbers():
         zg_elem = zg[i]
         zj = np.linspace(zg_elem-delta_z/2, zg_elem+delta_z/2, 2) # Galaxy bin
         Wg = Wg_j(zt, zj)
-        C_sgLimber[i] = LimberCsg(l, zj, Pfunc, c_M=0)
-        C_sgLimber1[i] = LimberCsg(l, zj, Pfunc1, c_M=1)
-        C_sgLimber2[i] = LimberCsg(l, zj, Pfunc2, c_M=-1)
+        #C_sgLimber[i] = LimberCsg(l, zj, Pfunc, c_M=0)
+        #C_sgLimber1[i] = LimberCsg(l, zj, Pfunc1, c_M=1)
+        C_sgLimber2[i] = LimberCsg(l, zj, Pfunc2, c_M=-0.4, c_B=0.8)
 
-        C_tgLimber[i] = LimberCtg(l, zj, Pfunc, c_M=0)
-        C_tgLimber1[i] = LimberCtg(l, zj, Pfunc1, c_M=1)
-        C_tgLimber2[i] = LimberCtg(l, zj, Pfunc2, c_M=-1)
+        #C_tgLimber[i] = LimberCtg(l, zj, Pfunc, c_M=0)
+        #C_tgLimber1[i] = LimberCtg(l, zj, Pfunc1, c_M=1)
+        C_tgLimber2[i] = LimberCtg(l, zj, Pfunc2, c_M=-0.4, c_B=0.8)
         #C_vgLimber[i] = LimberCvg(l, zj, P)
-    #np.save("data/Cs/Csglimber.npy", C_sgLimber)
-    #np.save("data/Cs/Ctglimber.npy", C_tgLimber)
-    #np.save("data/Cs/Cvglimber.npy", C_vgLimber)
-    #np.save("data/Cs/zglimber.npy", zg)
+    #np.save("Csglimber_l{}_cm{}.npy".format(l, 0), C_sgLimber)
+    #np.save("Csglimber_l{}_cm{}.npy".format(l, 1), C_sgLimber1)
+    np.save("Csglimber_l{}_cm{}_cb{}.npy".format(l, -0.4, 0.8), C_sgLimber2)
+    #np.save("Ctglimber_l{}_cm{}.npy".format(l, 0), C_tgLimber)
+    #np.save("Ctglimber_l{}_cm{}.npy".format(l, 1), C_tgLimber1)
+    np.save("Ctglimber_l{}_cm{}_cb{}.npy".format(l, -0.4, 0.8), C_tgLimber2)
+    np.save("Limberzg_l{}.npy".format(l), zg)
     plt.plot(zg, C_sgLimber,"r-")
     plt.plot(zg, C_tgLimber,"r--")
 
@@ -520,7 +524,7 @@ def PlotLimbers():
     #plt.plot(zg, C_tgLimber,"b.-")
     #plt.plot(zg, C_vgLimber,"g.-")
 
-    #x = np.load("zgcm0.npy")
+    x = np.load("zgcm0.npy")
     #C1 = np.load("Csgcm0.npy")
     #C2 = np.load("Ctgcm0.npy")
     #plt.plot(x, C1)
@@ -536,7 +540,7 @@ def PlotLimbers():
     plt.ylabel("$C^{xg}$")
     plt.yscale("log")
     plt.axis([0.1,1.6, 1e-8,1e-4])
-    plt.savefig("MGLimbersCxg4", dpi=300)
+    #plt.savefig("MGLimbersCxg4", dpi=300)
     #plt.axis([0.01,1.4, 1e-12,1e-3])
     #plt.savefig("data/Limbers{}".format(runindex))
     plt.show()
