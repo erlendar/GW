@@ -9,12 +9,23 @@ from scipy.interpolate import interp1d
 
 
 z_i = np.linspace(0.9, 1.1, 2)  # GW bin
+#z_i = np.linspace(0.83-0.1, 0.83+0.1, 2)
 
 def integrate(x,y,ax=-1):
     return inte.simps(y,x,axis=ax)
 
-def j(x,l=2):
+def j(x,l=5):
     return spec.spherical_jn(l,x)
+
+"""
+x = np.linspace(0,100,10000)
+plt.plot(x, j(x,l=5))
+plt.plot(x, j(x,l=12))
+plt.xlabel("$x$")
+plt.legend(["$j_{(\ell=5)}(x)$","$j_{(\ell=12)}(x)$"])
+plt.savefig("SPHERICALBESSELS", dpi=200)
+plt.show()
+"""
 
 """
 x = np.linspace(0,100,1000)
@@ -47,12 +58,26 @@ def f(z):
     #omega = omega_m*(1+z)**3
     #return omega**0.6 + omega_de/70*(1+omega/2) # Dodelson approx
 
-
     omega = omega_m*(1+z)**3*H(0)**2/H(z)**2
     omega_de = omega_de*H(0)**2/H(z)**2
     return omega**(4/7) + omega_de/70*(1+omega/2) # Dodelson approx
     #return 5*omega/(2*(omega**(4/7) - omega_de + (1 + omega/2)*(1 + omega_de/70)))
     #return omega**0.55
+
+def g(z):
+    """
+    The growth factor
+    """
+    omega_m  = 0.308
+    omega_de = 0.692
+
+    omega = omega_m*(1+z)**3*H(0)**2/H(z)**2
+    omega_de = omega_de*H(0)**2/H(z)**2
+    nom = 5*omega
+    denom = 2*(omega**(4/7) - omega_de + (1 + omega/2)*(1 + omega_de/70))
+    return nom/denom
+
+
 
 def chi(z):
     c = 299792458/1000
@@ -142,11 +167,12 @@ def omega_matter(z):
     omega = omega_m*(1 + z)**3/(omega_de + omega_m*(1 + z)**3)
     return omega
 
-def Ws_i(z, c_M=0):
+def Ws_i(z, z_i=z_i, c_M=0):
     I = CLASS(z_i)
     return I.Ws(z, c_M)
 
-def Wt_i(z, c_M=0):
+
+def Wt_i(z, z_i=z_i, c_M=0):
     I = CLASS(z_i)
     return I.Wt(z, c_M)
 
@@ -288,9 +314,24 @@ def z_(chiarg, save=False):
     f = interp1d(ch, z)
     return f(chiarg)
 
+"""
+z1 = 0.75
+z2 = 1
+ch1 = chi(z1)*0.6763
+ch2 = chi(z2)*0.6763
+print((ch2- ch1)/(1+z2)*0.1/360*2*np.pi)
+"""
 
 
-
-
+"""
+h = 0.6763
+z = 1
+deg = 3.5
+rad = deg/360*2*np.pi
+d_a = chi(z)/(1+z)*h
+x = rad*d_a
+x_comoving = x*(1+z)
+print(x_comoving) # = 140, which is just at the bottom of xi(r)
+"""
 
 #

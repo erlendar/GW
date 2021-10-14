@@ -9,7 +9,7 @@ import scipy.misc as ms
 import time
 
 
-def Wbar_si(chi, c_M=0):
+def Wbar_si(chi, z_i=z_i, c_M=0):
     """
     Window function used to find fcosm
     In units h/Mpc
@@ -19,7 +19,7 @@ def Wbar_si(chi, c_M=0):
     h = 0.6763
     c = 299792458/1000 # km/s
     z = z_(chi/h) # z_ reads chi in units Mpc
-    return Ws_i(z, c_M)*b_GW(z)*H(z)/(c*h)
+    return Ws_i(z, z_i, c_M)*b_GW(z)*H(z)/(c*h)
 
 def Wbar_gj(chi, zj):
     """
@@ -218,7 +218,7 @@ def make_oguriplot(reset_runindex=False, N=100, c_M=0, c_B=0, savearrays=False):
 
 
 
-#make_oguriplot(c_M=-0.4, c_B=0.8, savearrays=True)
+#make_oguriplot(c_M=0, c_B=0, savearrays=True)
 
 
 
